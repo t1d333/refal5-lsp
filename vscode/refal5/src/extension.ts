@@ -15,8 +15,7 @@ import {
 let lc: LanguageClient;
 
 export function activate(context: ExtensionContext) {
-  console.log(321123);
-  // The server is a started as a separate app and listens on port 5007
+ // The server is a started as a separate app and listens on port 5007
   let connectionInfo: net.NetConnectOpts = {
     port: 5555,
     host: 'localhost'

@@ -1,8 +1,8 @@
 .PHONY: extension
 
-extenstion:
+extension:
 	@code --extensionDevelopmentPath=$(pwd)/vscode
-
+ 
 run:
 	@go run ./cmd/server/main.go
 

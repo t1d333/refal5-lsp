@@ -12,6 +12,7 @@ import (
 	"github.com/tliron/glsp/server"
 	"go.uber.org/zap"
 
+	"github.com/tliron/commonlog"
 	_ "github.com/tliron/commonlog/simple"
 )
 
@@ -23,6 +24,10 @@ var (
 type RefalServer interface {
 	Start(settings *StartSettings) error
 	DefaultHandler() *protocol.Handler
+}
+
+func init() {
+	commonlog.Configure(1, nil)
 }
 
 func CreateRefalServer(
@@ -101,16 +106,16 @@ func (s *refalServer) textDocumentDidOpenHandler(
 	return nil
 }
 
-
-func (s *refalServer) textDocumentDidCloseHandler( context *glsp.Context, params *protocol.DidCloseTextDocumentParams) error {
-
+func (s *refalServer) textDocumentDidCloseHandler(
+	context *glsp.Context,
+	params *protocol.DidCloseTextDocumentParams,
+) error {
 	if err := s.storage.DeleteDocument(params.TextDocument.URI); err != nil {
 		s.logger.Error("refalServer.textDocumentDidCloseHandler", zap.Error(err))
 		return err
 	}
-	
+
 	return nil
-	
 }
 
 func (s *refalServer) textCompletionHandler(
@@ -143,9 +148,50 @@ func (s *refalServer) textDocumentDidChangeHandler(
 	params *protocol.DidChangeTextDocumentParams,
 ) error {
 	fmt.Println("Did change")
-	fmt.Printf("%+v\n", *context)
 	fmt.Printf("%+v\n", *params)
-	fmt.Println(params.ContentChanges[0])
+
+	for _, change := range params.ContentChanges {
+		documentURI := params.TextDocument.URI
+		// TODO: check err
+		document, _ := s.storage.GetDocument(documentURI)
+		if event, ok := change.(protocol.TextDocumentContentChangeEvent); ok {
+			if event.Text != "" && event.Range.Start.Line < uint32(len(document.Lines)) {
+				lines := strings.Split(event.Text, "\n")
+				startChar := event.Range.Start.Character
+				startLine := event.Range.Start.Line
+				if len(lines) == 1 {
+					modifitedLine := document.Lines[startLine]
+					document.Lines[startLine] = modifitedLine[:startChar] + lines[0] + modifitedLine[startChar:]
+				} else {
+					lines[len(lines)-1] += document.Lines[startLine][startChar:]
+					document.Lines[startLine] = document.Lines[startLine][:startChar] + lines[0]
+					border := event.Range.Start.Line + 1
+					newLines := make([]string, len(document.Lines)+len(lines)-1)
+					copy(newLines[:border], document.Lines[:border])
+					copy(newLines[border:border+uint32(len(lines)-1)], lines[1:])
+					copy(newLines[border+uint32(len(lines))-1:], document.Lines[border:])
+					document.Lines = newLines
+				}
+			} else if event.Text == "" {
+				if event.Range.Start.Line != event.Range.End.Line {
+					start := event.Range.Start.Line
+					end := event.Range.End.Line
+
+					document.Lines[start] = document.Lines[start][:event.Range.Start.Character] + document.Lines[end][event.Range.End.Character:]
+					document.Lines = append(document.Lines[:start+1], document.Lines[end+1:]...)
+				} else {
+					a := document.Lines[event.Range.Start.Line][:event.Range.Start.Character] + document.Lines[event.Range.Start.Line][event.Range.End.Character:]
+					document.Lines[event.Range.Start.Line] = a
+				}
+			} else {
+				// TODO: handle this case
+			}
+		} else {
+			// TODO: handle this case
+		}
+		fmt.Println(len(document.Lines), document.Lines)
+		s.storage.SaveDocument(documentURI, document)
+	}
 
 	return nil
 }
@@ -195,7 +241,7 @@ func (s *refalServer) DefaultHandler() *protocol.Handler {
 		TextDocumentDidClose:   s.textDocumentDidCloseHandler,
 		TextDocumentDidChange:  s.textDocumentDidChangeHandler,
 		TextDocumentCompletion: s.textCompletionHandler,
-		
+
 		CompletionItemResolve: func(context *glsp.Context, params *protocol.CompletionItem) (*protocol.CompletionItem, error) {
 			fmt.Println("Completion item resolve")
 			fmt.Printf("%+v\n", *context)
