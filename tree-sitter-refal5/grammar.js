@@ -6,62 +6,15 @@
 
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
-//
-// Grammar from http://refal.botik.ru/book/html/
-// expression ::= empty 
-//                term expression 
-//
-// term ::= symbol 
-//          variable  
-//          (expression)
-//          
-//
-// f-name ::= identifier 
-// empty ::= 
-// A pattern expression, or pattern, is an expression which includes no activation brackets. A ground expression is an expression which includes no variables.
-//
-// 3. Sentences and programs
-// A Refal program is a list of function definitions (f-definition's — see below) and external function declarations (external-decl). Semicolons must be used to separate an external declaration from the following function definition; they may also separate function definitions.
-//
-// program ::= f-definition 
-//             f-definition  program 
-//             f-definition ;  program 
-//             external-decl ;  program 
-//             program  external-decl ;
-//
-// f-definition ::= f-name {  block }
-//              $ENTRY  f-name {  block }
-//
-// external-decl ::= $EXTERNAL  f-name-list 
-//                   $EXTERN  f-name-list 
-//                   $EXTRN  f-name-list 
-//
-// f-name-list ::= f-name 
-//                 f-name , f-name-list 
-//
-// f-name ::= identifier 
-//
-// block ::= sentence 
-//           sentence ;
-//           sentence ;  block 
-//
-// sentence ::= left-side  conditions  =   right-side 
-//              left-side  conditions  ,  block-ending 
-//
-// left-side ::= pattern 
-//
-// conditions ::= empty 
-//                , arg : pattern conditions 
-//
-// arg ::= expression 
-//
-// right-side ::= expression 
-//
-// block-ending ::= arg : { block }
 
 module.exports = grammar({
   name: "refal5",
-
+  
+  extras: $ => [
+    /\s/,
+    $.comment
+  ],
+  
   rules: {
     source_file: $ => repeat(
       choice(
@@ -83,14 +36,15 @@ module.exports = grammar({
     function_definition: $ => seq(
       optional($.entry_modifier),
       field('func_name', $.ident,),
-      $.body,
+      field('func_body', $.body),
     ),
 
     body: $ => seq(
       '{',
-      repeat(
-        $.sentence
+      repeat1(
+        seq($.sentence, ';')
       ),
+      optional($.sentence),
       '}'
     ),
 
@@ -100,51 +54,55 @@ module.exports = grammar({
     ),
 
     sentenceEq: $ => seq(
-      optional($.pattern), 
-      repeat($.condition),
+      field(
+        "lhs",
+        seq(
+          optional($._pattern), 
+          repeat($.condition)
+        )
+      ),
       "=",
-      optional($.expr),
-      ';'
+      field("rhs", optional($._expr)),
     ),
 
     sentenceBlock: $ => seq(
-      optional($.pattern), 
+      optional($._pattern), 
       repeat($.condition),
       ',',
-      $.sentenceBlockEnd,
+      field('block', $.sentenceBlockEnd),
     ),
     
     sentenceBlockEnd: $ => seq(
-      optional($.expr), 
+      field('expr', optional($._expr)), 
       ':',
       '{',
-      $.body, 
+      field('body', $.body), 
       '}'
     ),
     
-    pattern: $ => repeat1(choice(
+    _pattern: $ => repeat1(choice(
       $.ident,
       $.string,
       $.number,
       $.variable,
-      seq('(', optional($.pattern), ')')
+      seq('(', optional($._pattern), ')')
     )),
 
     condition: $ => seq(
         ',',
-        optional($.expr),
+        field('result', optional($._expr)),
         ':',
-        optional($.pattern),
+        field('pattern', optional($._pattern)),
     ),
 
-    expr: $ => repeat1(
+    _expr: $ => repeat1(
       choice(
         $.ident,
         $.string,
         $.number,
         $.variable,
-        seq('<', $.ident,  optional($.expr), '>'),
-        seq('(', optional($.expr), ')')
+        seq('<', $.ident,  optional($._expr), '>'),
+        seq('(', optional($._expr), ')')
       )
     ),
 
@@ -162,13 +120,22 @@ module.exports = grammar({
       't'
     ),
 
-    string: $ => /'[^\n']*'|\"[^\n\"]*\"/,
-    number: $ => /\d+/,
+    string: $ => /\"[^\n]*\"/,
+    
+    number: $ => /('-'|'+')?\d+/,
+    
     entry_modifier: $ => /\$ENTRY/,
+    
     external_modifier: $ => choice(
         '$EXTERNAL',
         '$EXTERN',
         '$EXTRN'
-    )
+    ),
+
+    comment: $ => token(choice(
+      seq('//', /[^\n]*/),
+      seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')
+    )),
+
   }
 });
