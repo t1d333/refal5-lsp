@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/t1d333/refal5-lsp/internal/documents"
-	"github.com/t1d333/refal5-lsp/internal/refal/objects"
+	"github.com/t1d333/refal5-lsp/internal/refal5/ast"
+	"github.com/t1d333/refal5-lsp/internal/refal5/objects"
 	"github.com/t1d333/refal5-lsp/pkg/reader"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -78,30 +80,29 @@ func (r *refalServer) Start(settings *StartSettings) error {
 }
 
 func (s *refalServer) textDocumentDidOpenHandler(
-	context *glsp.Context,
+	ctx *glsp.Context,
 	params *protocol.DidOpenTextDocumentParams,
 ) error {
-	fmt.Println("Did open")
-	fmt.Printf("%+v\n", *context)
-	fmt.Printf("%+v\n", *params)
-
-	data, err := reader.ReadFile(params.TextDocument.URI)
+	sourceCode, err := reader.ReadFile(params.TextDocument.URI)
 	if err != nil {
 		// TODO: log and wrap error
 		return err
 	}
 
+	tree := ast.BuildAst(context.Background(), nil, []byte(sourceCode))
+	table := ast.BuildSymbolTable(tree, []byte(sourceCode))
+
+	fmt.Println(table.FunctionDefinitions)
 	document := documents.Document{
-		Uri:   params.TextDocument.URI,
-		Lines: strings.Split(data, "\n"),
+		Uri:         params.TextDocument.URI,
+		Lines:       strings.Split(sourceCode, "\n"),
+		Ast:         tree,
+		SymbolTable: table,
 	}
 
 	if err := s.storage.SaveDocument(params.TextDocument.URI, document); err != nil {
 		return err
 	}
-
-	doc, _ := s.storage.GetDocument(document.Uri)
-	fmt.Println(doc)
 
 	return nil
 }
@@ -122,23 +123,63 @@ func (s *refalServer) textCompletionHandler(
 	context *glsp.Context,
 	params *protocol.CompletionParams,
 ) (any, error) {
-	fmt.Println("Completion")
-
 	var completionItems []protocol.CompletionItem
 
+	document, _ := s.storage.GetDocument(params.TextDocument.URI)
+
+	// completion defined functions
+	for function := range document.SymbolTable.FunctionDefinitions {
+		kind := protocol.CompletionItemKindFunction
+		sign := fmt.Sprintf("<%s>", function)
+		completionItems = append(completionItems, protocol.CompletionItem{
+			Label:      function,
+			InsertText: &sign,
+			Kind:       &kind,
+		})
+	}
+
+	// completion extrenal functions
+	for function := range document.SymbolTable.ExternalDeclarations {
+		kind := protocol.CompletionItemKindFunction
+		sign := fmt.Sprintf("<%s>", function)
+		completionItems = append(completionItems, protocol.CompletionItem{
+			Label:      function,
+			InsertText: &sign,
+			Kind:       &kind,
+		})
+	}
+
+	// completion builtin functions
 	for _, function := range objects.BuiltInFunctions {
 
 		kind := protocol.CompletionItemKindFunction
-		f := function
 		completionItems = append(completionItems, protocol.CompletionItem{
-			Label:         f.Name,
-			Detail:        &f.Signature,
-			Documentation: &f.Description,
-			InsertText:    &f.Signature,
+			Label:         function.Name,
+			Detail:        &function.Signature,
+			Documentation: &function.Description,
+			InsertText:    &function.Signature,
 			Kind:          &kind,
 		})
 
 	}
+
+	// completion keywords
+
+	for _, keyword := range objects.Keywords {
+		kind := protocol.CompletionItemKindKeyword
+		
+		completionItems = append(completionItems, protocol.CompletionItem{
+			Label:         keyword.Name,
+			InsertText:    &keyword.Value,
+			Kind:          &kind,
+		})
+		
+	}
+
+
+	// completion variables
+
+	// completion 
 
 	return completionItems, nil
 }
@@ -233,22 +274,16 @@ func (s *refalServer) setTrace(context *glsp.Context, params *protocol.SetTraceP
 
 func (s *refalServer) DefaultHandler() *protocol.Handler {
 	handler := &protocol.Handler{
-		Initialize:             s.initializeHandler,
-		Initialized:            s.initializedHandler,
-		Shutdown:               s.shutdownHandler,
-		SetTrace:               s.setTrace,
-		TextDocumentDidOpen:    s.textDocumentDidOpenHandler,
-		TextDocumentDidClose:   s.textDocumentDidCloseHandler,
-		TextDocumentDidChange:  s.textDocumentDidChangeHandler,
-		TextDocumentCompletion: s.textCompletionHandler,
-
-		CompletionItemResolve: func(context *glsp.Context, params *protocol.CompletionItem) (*protocol.CompletionItem, error) {
-			fmt.Println("Completion item resolve")
-			fmt.Printf("%+v\n", *context)
-			fmt.Printf("%+v\n", *params)
-
-			return nil, nil
-		},
+		Initialize:              s.initializeHandler,
+		Initialized:             s.initializedHandler,
+		Shutdown:                s.shutdownHandler,
+		SetTrace:                s.setTrace,
+		TextDocumentDidOpen:     s.textDocumentDidOpenHandler,
+		TextDocumentDidClose:    s.textDocumentDidCloseHandler,
+		TextDocumentDidChange:   s.textDocumentDidChangeHandler,
+		TextDocumentCompletion:  s.textCompletionHandler,
+		TextDocumentDefinition:  func(context *glsp.Context, params *protocol.DefinitionParams) (any, error) { return nil, nil },
+		TextDocumentDeclaration: func(context *glsp.Context, params *protocol.DeclarationParams) (any, error) { return nil, nil },
 	}
 
 	return handler

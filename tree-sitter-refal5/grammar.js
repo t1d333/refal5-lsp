@@ -30,13 +30,14 @@ module.exports = grammar({
     ),
 
     function_name_list: $ => repeat1(
-      $.ident
+      seq(
+        field('name', $.ident)
+      )
     ),
     
-    function_definition: $ => seq(
-      optional($.entry_modifier),
-      field('func_name', $.ident,),
-      field('func_body', $.body),
+    function_definition: $ => seq( field('entry' ,optional($.entry_modifier)),
+      field('name', $.ident,),
+      field('body', $.body),
     ),
 
     body: $ => seq(
@@ -124,7 +125,7 @@ module.exports = grammar({
     
     number: $ => /('-'|'+')?\d+/,
     
-    entry_modifier: $ => /\$ENTRY/,
+    entry_modifier: $ => '$ENTRY',
     
     external_modifier: $ => choice(
         '$EXTERNAL',

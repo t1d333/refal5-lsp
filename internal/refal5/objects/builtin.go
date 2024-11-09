@@ -1,16 +1,5 @@
 package objects
 
-// <Open s.Mode s.D e.File-name>
-// opens file e.File-name and associates it with the file descriptor s.D . s.Mode is one of: 'w','W' (open for writing), 'r','R' (open for reading) or 'a','A' (open for adding). e.File-name may be empty; Open will then try to open file REFALdescr.DAT, where descr is the decimal representation of s.D . If the mode is reading and this file does not exist, an error occurs. If the mode is writing, this file is created.
-// <Get s.D>
-// where s.D is a file descriptor or, is similar to <Card> except that it gets its input from the file associated with s.D . If no file has been opened for reading with that file descriptor, Get will try to open file REFALdescr.DAT, where descr is the decimal representation of s.D . If it fails, an error occurs and the program is terminated. If s.D is 0, Get will read from the terminal.
-// <Put s.D e.Expr>
-// where s.D is a file descriptor or, writes e.Expr on the file associated with s.D and returns Expr (similar to Print). If no file has been opened for writing with that file descriptor, Put will open file REFALdescr.DAT, where descr is the decimal representation of s.D . If s.D is 0, Put prints out on the terminal. (Note that this output is not redirectable.)
-// <Putout s.D e.Expr>
-// returns empty (like Prout ). In all other respects Putout is identical to Put.
-// <RemoveFile e.file_name> :: s.Boolean (e.Errors)
-// If the function e.file_name can be successfully deleted, it is deleted, and s.Boolean is "True"; otherwise s.Boolean is "False", and the value of e.Errors is a description of the error.
-
 var BuiltInFunctions = []RefalFunction{
 	{
 		Name:        "Card",
@@ -23,7 +12,7 @@ var BuiltInFunctions = []RefalFunction{
 		Name:        "Close ",
 		Description: "s.ID is the identifying number of the file. The function closes the file. If such a file does not exist, no action is taken. The value of Close is always empty",
 		Category:    "I/O Functions",
-		Signature:   "<Close s.ID>",
+		Signature:   "<Close $0>",
 	},
 	{
 		Name:        "ExistFile",
@@ -36,7 +25,7 @@ var BuiltInFunctions = []RefalFunction{
 		Name:        "Print",
 		Description: "prints the expression e.Expr on the current output and returns (is replaced by) e.Expr",
 		Category:    "I/O Functions",
-		Signature:   "<Print e.Expr>",
+		Signature:   "<Print $0e.Expr>",
 		ReturnValue: "None",
 	},
 	{
@@ -44,7 +33,30 @@ var BuiltInFunctions = []RefalFunction{
 		Description: `Prints the expression e.Expr on the current output and returns the empty expression.
 Functions that work with files require a file descriptor as an argument. A file descriptor is a macrodigit in the range 1-19; in some operations the descriptor 0 is allowed and refers to the terminal.`,
 		Category:    "I/O Functions",
-		Signature:   "<Prout e.Expr>",
+		Signature:   "<Prout $0e.Expr>",
 		ReturnValue: "None",
+	},
+}
+
+var Keywords = []Keyword{
+	{
+		Name:        "EXTERNAL",
+		Value:       "$EXTERNAL",
+		Description: "keyword $EXTERNAL",
+	},
+	{
+		Name:        "EXTERN",
+		Value:       "$EXTERN",
+		Description: "keyword $EXTERN",
+	},
+	{
+		Name:        "EXT",
+		Value:       "$EXT",
+		Description: "keyword $EXT",
+	},
+	{
+		Name:        "ENTRY",
+		Value:       "$ENTRY",
+		Description: "keyword $ENTRY",
 	},
 }
