@@ -1,5 +1,6 @@
 package objects
 
+// TODO: add preview for functions, e.g. <Close s.ID>, but not <Close  ${1:s.ID}> 
 var BuiltInFunctions = []RefalFunction{
 	{
 		Name:        "Card",
@@ -12,7 +13,7 @@ var BuiltInFunctions = []RefalFunction{
 		Name:        "Close ",
 		Description: "s.ID is the identifying number of the file. The function closes the file. If such a file does not exist, no action is taken. The value of Close is always empty",
 		Category:    "I/O Functions",
-		Signature:   "<Close $0>",
+		Signature:   "<Close  ${1:s.ID}>",
 	},
 	{
 		Name:        "ExistFile",
@@ -25,7 +26,7 @@ var BuiltInFunctions = []RefalFunction{
 		Name:        "Print",
 		Description: "prints the expression e.Expr on the current output and returns (is replaced by) e.Expr",
 		Category:    "I/O Functions",
-		Signature:   "<Print $0e.Expr>",
+		Signature:   "<Print ${1:e.Expr}>",
 		ReturnValue: "None",
 	},
 	{
@@ -33,7 +34,7 @@ var BuiltInFunctions = []RefalFunction{
 		Description: `Prints the expression e.Expr on the current output and returns the empty expression.
 Functions that work with files require a file descriptor as an argument. A file descriptor is a macrodigit in the range 1-19; in some operations the descriptor 0 is allowed and refers to the terminal.`,
 		Category:    "I/O Functions",
-		Signature:   "<Prout $0e.Expr>",
+		Signature:   "<Prout ${1:e.Expr}>",
 		ReturnValue: "None",
 	},
 }

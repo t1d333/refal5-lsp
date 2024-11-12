@@ -1,8 +1,13 @@
 package documents
 
 import (
+	"bytes"
+	"context"
+	"fmt"
+	"strings"
 	"sync"
 
+	"github.com/t1d333/refal5-lsp/internal/refal5/ast"
 	"go.uber.org/zap"
 )
 
@@ -31,6 +36,32 @@ func (s *InMemoryDocumentStorage) SaveDocument(uri string, document Document) er
 }
 
 // UpdateDocument implements DocumentsStorage.
-func (i *InMemoryDocumentStorage) UpdateDocument(uri string) error {
-	panic("unimplemented")
+func (s *InMemoryDocumentStorage) UpdateDocument(
+	uri string,
+	change string,
+	start, end uint32,
+) error {
+	var buf bytes.Buffer
+
+	// TODO: check error
+	document, _ := s.GetDocument(uri)
+
+	fmt.Println(len(document.Content))
+	buf.Write(document.Content[:start])
+	buf.Write([]byte(change))
+	buf.Write([]byte(document.Content[end:]))
+	document.Content = buf.Bytes()
+	document.Lines = strings.Split(string(document.Content), "\n")
+	document.Ast.UpdateAst(
+		context.Background(),
+		start,
+		end,
+		start+uint32(len(change)),
+		[]byte(document.Content),
+	)
+
+	document.SymbolTable = ast.BuildSymbolTable(document.Ast, []byte(document.Content))
+	s.SaveDocument(document.Uri, document)
+
+	return nil
 }

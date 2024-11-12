@@ -32,6 +32,18 @@ func init() {
 	commonlog.Configure(1, nil)
 }
 
+func positionToIndex(pos protocol.Position, content []byte) int {
+	index := 0
+	for i := 0; i < int(pos.Line); i++ {
+		if i < int(pos.Line) {
+			index = index + strings.Index(string(content[index:]), "\n") + 1
+		}
+	}
+
+	index = index + int(pos.Character)
+	return index
+}
+
 func CreateRefalServer(
 	logger *zap.Logger,
 	handler *protocol.Handler,
@@ -92,9 +104,9 @@ func (s *refalServer) textDocumentDidOpenHandler(
 	tree := ast.BuildAst(context.Background(), nil, []byte(sourceCode))
 	table := ast.BuildSymbolTable(tree, []byte(sourceCode))
 
-	fmt.Println(table.FunctionDefinitions)
 	document := documents.Document{
 		Uri:         params.TextDocument.URI,
+		Content:     []byte(sourceCode),
 		Lines:       strings.Split(sourceCode, "\n"),
 		Ast:         tree,
 		SymbolTable: table,
@@ -127,38 +139,64 @@ func (s *refalServer) textCompletionHandler(
 
 	document, _ := s.storage.GetDocument(params.TextDocument.URI)
 
+	// completeLine := params.TextDocumentPositionParams.Position.Line
+	// completePos := params.TextDocumentPositionParams.Position.Character
+
+	// tmp := strings.Split(document.Lines[completeLine][:completePos], " ")
+	wordToComplete := ""
 	// completion defined functions
 	for function := range document.SymbolTable.FunctionDefinitions {
+		if !strings.HasPrefix(function, wordToComplete) {
+			continue
+		}
+
 		kind := protocol.CompletionItemKindFunction
-		sign := fmt.Sprintf("<%s>", function)
+		// TODO: check comments for signature helping
+		sign := fmt.Sprintf("<%s $1>", function)
+		textFormat := protocol.InsertTextFormatSnippet
+
 		completionItems = append(completionItems, protocol.CompletionItem{
-			Label:      function,
-			InsertText: &sign,
-			Kind:       &kind,
+			Label:            function,
+			InsertText:       &sign,
+			InsertTextFormat: &textFormat,
+			Kind:             &kind,
 		})
 	}
 
 	// completion extrenal functions
 	for function := range document.SymbolTable.ExternalDeclarations {
+		if !strings.HasPrefix(function, wordToComplete) {
+			continue
+		}
+
 		kind := protocol.CompletionItemKindFunction
-		sign := fmt.Sprintf("<%s>", function)
+		signature := fmt.Sprintf("<%s $1>", function)
+		textFormat := protocol.InsertTextFormatSnippet
+
 		completionItems = append(completionItems, protocol.CompletionItem{
-			Label:      function,
-			InsertText: &sign,
-			Kind:       &kind,
+			Label:            function,
+			InsertText:       &signature,
+			InsertTextFormat: &textFormat,
+			Kind:             &kind,
 		})
 	}
 
 	// completion builtin functions
 	for _, function := range objects.BuiltInFunctions {
+		if !strings.HasPrefix(function.Name, wordToComplete) {
+			continue
+		}
 
 		kind := protocol.CompletionItemKindFunction
+		textFormat := protocol.InsertTextFormatSnippet
+
 		completionItems = append(completionItems, protocol.CompletionItem{
-			Label:         function.Name,
-			Detail:        &function.Signature,
-			Documentation: &function.Description,
-			InsertText:    &function.Signature,
-			Kind:          &kind,
+			Label:  function.Name,
+			Detail: &function.Signature,
+			// Documentation: &function.Description,
+			InsertTextFormat: &textFormat,
+			InsertText:       &function.Signature,
+			Kind:             &kind,
 		})
 
 	}
@@ -166,26 +204,27 @@ func (s *refalServer) textCompletionHandler(
 	// completion keywords
 
 	for _, keyword := range objects.Keywords {
+		if !strings.HasPrefix(keyword.Name, wordToComplete) {
+			continue
+		}
+
 		kind := protocol.CompletionItemKindKeyword
-		
+
 		completionItems = append(completionItems, protocol.CompletionItem{
-			Label:         keyword.Name,
-			InsertText:    &keyword.Value,
-			Kind:          &kind,
+			Label:      keyword.Name,
+			InsertText: &keyword.Value,
+			Kind:       &kind,
 		})
-		
+
 	}
 
-
 	// completion variables
-
-	// completion 
 
 	return completionItems, nil
 }
 
 func (s *refalServer) textDocumentDidChangeHandler(
-	context *glsp.Context,
+	ctx *glsp.Context,
 	params *protocol.DidChangeTextDocumentParams,
 ) error {
 	fmt.Println("Did change")
@@ -194,44 +233,23 @@ func (s *refalServer) textDocumentDidChangeHandler(
 	for _, change := range params.ContentChanges {
 		documentURI := params.TextDocument.URI
 		// TODO: check err
+
 		document, _ := s.storage.GetDocument(documentURI)
 		if event, ok := change.(protocol.TextDocumentContentChangeEvent); ok {
-			if event.Text != "" && event.Range.Start.Line < uint32(len(document.Lines)) {
-				lines := strings.Split(event.Text, "\n")
-				startChar := event.Range.Start.Character
-				startLine := event.Range.Start.Line
-				if len(lines) == 1 {
-					modifitedLine := document.Lines[startLine]
-					document.Lines[startLine] = modifitedLine[:startChar] + lines[0] + modifitedLine[startChar:]
-				} else {
-					lines[len(lines)-1] += document.Lines[startLine][startChar:]
-					document.Lines[startLine] = document.Lines[startLine][:startChar] + lines[0]
-					border := event.Range.Start.Line + 1
-					newLines := make([]string, len(document.Lines)+len(lines)-1)
-					copy(newLines[:border], document.Lines[:border])
-					copy(newLines[border:border+uint32(len(lines)-1)], lines[1:])
-					copy(newLines[border+uint32(len(lines))-1:], document.Lines[border:])
-					document.Lines = newLines
-				}
-			} else if event.Text == "" {
-				if event.Range.Start.Line != event.Range.End.Line {
-					start := event.Range.Start.Line
-					end := event.Range.End.Line
+			start, end := positionToIndex(
+				event.Range.Start,
+				[]byte(document.Content),
+			), positionToIndex(
+				event.Range.End,
+				[]byte(document.Content),
+			)
 
-					document.Lines[start] = document.Lines[start][:event.Range.Start.Character] + document.Lines[end][event.Range.End.Character:]
-					document.Lines = append(document.Lines[:start+1], document.Lines[end+1:]...)
-				} else {
-					a := document.Lines[event.Range.Start.Line][:event.Range.Start.Character] + document.Lines[event.Range.Start.Line][event.Range.End.Character:]
-					document.Lines[event.Range.Start.Line] = a
-				}
-			} else {
-				// TODO: handle this case
-			}
+			s.storage.UpdateDocument(document.Uri, event.Text, uint32(start), uint32(end))
+
 		} else {
 			// TODO: handle this case
 		}
-		fmt.Println(len(document.Lines), document.Lines)
-		s.storage.SaveDocument(documentURI, document)
+
 	}
 
 	return nil
