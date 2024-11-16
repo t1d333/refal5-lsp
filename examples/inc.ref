@@ -1,0 +1,5 @@
+Inc {
+  e.Prefix s.Last, '0123456789' : e.1 s.Last s.Next e.2 = e.Prefix s.Next;
+  e.Prefix '9' = <Inc e.Prefix> '0';
+  /* пусто */ = '1';
+}

@@ -3,7 +3,7 @@ package handlers
 import (
 	"fmt"
 
-	"github.com/t1d333/refal5-lsp/internal/refal/objects"
+	"github.com/t1d333/refal5-lsp/internal/refal5/objects"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 )

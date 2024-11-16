@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/t1d333/refal5-lsp/internal/documents"
-	"github.com/t1d333/refal5-lsp/internal/refal/objects"
+	"github.com/t1d333/refal5-lsp/internal/refal5/ast"
+	"github.com/t1d333/refal5-lsp/internal/refal5/objects"
 	"github.com/t1d333/refal5-lsp/pkg/reader"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -28,6 +30,18 @@ type RefalServer interface {
 
 func init() {
 	commonlog.Configure(1, nil)
+}
+
+func positionToIndex(pos protocol.Position, content []byte) int {
+	index := 0
+	for i := 0; i < int(pos.Line); i++ {
+		if i < int(pos.Line) {
+			index = index + strings.Index(string(content[index:]), "\n") + 1
+		}
+	}
+
+	index = index + int(pos.Character)
+	return index
 }
 
 func CreateRefalServer(
@@ -78,30 +92,30 @@ func (r *refalServer) Start(settings *StartSettings) error {
 }
 
 func (s *refalServer) textDocumentDidOpenHandler(
-	context *glsp.Context,
+	ctx *glsp.Context,
 	params *protocol.DidOpenTextDocumentParams,
 ) error {
-	fmt.Println("Did open")
-	fmt.Printf("%+v\n", *context)
-	fmt.Printf("%+v\n", *params)
-
-	data, err := reader.ReadFile(params.TextDocument.URI)
+	s.logger.Sugar().Infow("textDocumentDidOpen ", zap.String("document", params.TextDocument.URI))
+	sourceCode, err := reader.ReadFile(params.TextDocument.URI)
 	if err != nil {
 		// TODO: log and wrap error
 		return err
 	}
 
+	tree := ast.BuildAst(context.Background(), nil, []byte(sourceCode))
+	table := ast.BuildSymbolTable(tree, []byte(sourceCode))
+
 	document := documents.Document{
-		Uri:   params.TextDocument.URI,
-		Lines: strings.Split(data, "\n"),
+		Uri:         params.TextDocument.URI,
+		Content:     []byte(sourceCode),
+		Lines:       strings.Split(sourceCode, "\n"),
+		Ast:         tree,
+		SymbolTable: table,
 	}
 
 	if err := s.storage.SaveDocument(params.TextDocument.URI, document); err != nil {
 		return err
 	}
-
-	doc, _ := s.storage.GetDocument(document.Uri)
-	fmt.Println(doc)
 
 	return nil
 }
@@ -122,29 +136,117 @@ func (s *refalServer) textCompletionHandler(
 	context *glsp.Context,
 	params *protocol.CompletionParams,
 ) (any, error) {
-	fmt.Println("Completion")
-
 	var completionItems []protocol.CompletionItem
 
-	for _, function := range objects.BuiltInFunctions {
+	document, _ := s.storage.GetDocument(params.TextDocument.URI)
+
+	completeLine := params.TextDocumentPositionParams.Position.Line
+	completePos := params.TextDocumentPositionParams.Position.Character
+	fmt.Println("Line", completeLine, "Pos", completePos)
+
+	// tmp := strings.Split(document.Lines[completeLine][:completePos], " ")
+	wordToComplete := ""
+	line := document.Lines[completeLine]
+	i := int(completePos)
+	
+	if len(line) == int(completePos) {
+		i -= 1
+	}
+	
+	for  {
+		if i < 0 || line[i] == ' '  {
+			break
+		}
+
+		wordToComplete = string(line[i]) + wordToComplete
+		i -= 1
+	}
+	
+	fmt.Println("--------------", wordToComplete, line,"--------------")
+	// completion defined functions
+	for function := range document.SymbolTable.FunctionDefinitions {
+		if !strings.HasPrefix(function, wordToComplete) ||
+			strings.ToLower(function) == strings.ToLower(wordToComplete) {
+			continue
+		}
 
 		kind := protocol.CompletionItemKindFunction
-		f := function
+		// TODO: check comments for signature helping
+		sign := fmt.Sprintf("<%s $1>", function)
+		textFormat := protocol.InsertTextFormatSnippet
+
 		completionItems = append(completionItems, protocol.CompletionItem{
-			Label:         f.Name,
-			Detail:        &f.Signature,
-			Documentation: &f.Description,
-			InsertText:    &f.Signature,
-			Kind:          &kind,
+			Label:            function,
+			InsertText:       &sign,
+			InsertTextFormat: &textFormat,
+			Kind:             &kind,
+		})
+	}
+
+	// completion extrenal functions
+	for function := range document.SymbolTable.ExternalDeclarations {
+		if !strings.HasPrefix(function, wordToComplete) ||
+			strings.ToLower(function) == strings.ToLower(wordToComplete) {
+			continue
+		}
+
+		kind := protocol.CompletionItemKindFunction
+		signature := fmt.Sprintf("<%s $1>", function)
+		textFormat := protocol.InsertTextFormatSnippet
+
+		completionItems = append(completionItems, protocol.CompletionItem{
+			Label:            function,
+			InsertText:       &signature,
+			InsertTextFormat: &textFormat,
+			Kind:             &kind,
+		})
+	}
+
+	// completion builtin functions
+	for _, function := range objects.BuiltInFunctions {
+		if !strings.HasPrefix(function.Name, wordToComplete) ||
+			strings.ToLower(function.Name) == strings.ToLower(wordToComplete) {
+			continue
+		}
+
+		kind := protocol.CompletionItemKindFunction
+		textFormat := protocol.InsertTextFormatSnippet
+
+		completionItems = append(completionItems, protocol.CompletionItem{
+			Label:  function.Name,
+			Detail: &function.Signature,
+			// Documentation: &function.Description,
+			InsertTextFormat: &textFormat,
+			InsertText:       &function.Signature,
+			Kind:             &kind,
 		})
 
 	}
+
+	// completion keywords
+
+	for _, keyword := range objects.Keywords {
+		if !strings.HasPrefix(keyword.Name, wordToComplete) {
+			continue
+		}
+
+		kind := protocol.CompletionItemKindKeyword
+
+		completionItems = append(completionItems, protocol.CompletionItem{
+			Label:      keyword.Name,
+			InsertText: &keyword.Value,
+			Kind:       &kind,
+		})
+
+	}
+
+	// completion variables
 
 	return completionItems, nil
 }
 
 func (s *refalServer) textDocumentDidChangeHandler(
-	context *glsp.Context,
+	ctx *glsp.Context,
 	params *protocol.DidChangeTextDocumentParams,
 ) error {
 	fmt.Println("Did change")
@@ -153,44 +255,23 @@ func (s *refalServer) textDocumentDidChangeHandler(
 	for _, change := range params.ContentChanges {
 		documentURI := params.TextDocument.URI
 		// TODO: check err
+
 		document, _ := s.storage.GetDocument(documentURI)
 		if event, ok := change.(protocol.TextDocumentContentChangeEvent); ok {
-			if event.Text != "" && event.Range.Start.Line < uint32(len(document.Lines)) {
-				lines := strings.Split(event.Text, "\n")
-				startChar := event.Range.Start.Character
-				startLine := event.Range.Start.Line
-				if len(lines) == 1 {
-					modifitedLine := document.Lines[startLine]
-					document.Lines[startLine] = modifitedLine[:startChar] + lines[0] + modifitedLine[startChar:]
-				} else {
-					lines[len(lines)-1] += document.Lines[startLine][startChar:]
-					document.Lines[startLine] = document.Lines[startLine][:startChar] + lines[0]
-					border := event.Range.Start.Line + 1
-					newLines := make([]string, len(document.Lines)+len(lines)-1)
-					copy(newLines[:border], document.Lines[:border])
-					copy(newLines[border:border+uint32(len(lines)-1)], lines[1:])
-					copy(newLines[border+uint32(len(lines))-1:], document.Lines[border:])
-					document.Lines = newLines
-				}
-			} else if event.Text == "" {
-				if event.Range.Start.Line != event.Range.End.Line {
-					start := event.Range.Start.Line
-					end := event.Range.End.Line
+			start, end := positionToIndex(
+				event.Range.Start,
+				[]byte(document.Content),
+			), positionToIndex(
+				event.Range.End,
+				[]byte(document.Content),
+			)
 
-					document.Lines[start] = document.Lines[start][:event.Range.Start.Character] + document.Lines[end][event.Range.End.Character:]
-					document.Lines = append(document.Lines[:start+1], document.Lines[end+1:]...)
-				} else {
-					a := document.Lines[event.Range.Start.Line][:event.Range.Start.Character] + document.Lines[event.Range.Start.Line][event.Range.End.Character:]
-					document.Lines[event.Range.Start.Line] = a
-				}
-			} else {
-				// TODO: handle this case
-			}
+			s.storage.UpdateDocument(document.Uri, event.Text, uint32(start), uint32(end))
+
 		} else {
 			// TODO: handle this case
 		}
-		fmt.Println(len(document.Lines), document.Lines)
-		s.storage.SaveDocument(documentURI, document)
+
 	}
 
 	return nil
@@ -233,22 +314,16 @@ func (s *refalServer) setTrace(context *glsp.Context, params *protocol.SetTraceP
 
 func (s *refalServer) DefaultHandler() *protocol.Handler {
 	handler := &protocol.Handler{
-		Initialize:             s.initializeHandler,
-		Initialized:            s.initializedHandler,
-		Shutdown:               s.shutdownHandler,
-		SetTrace:               s.setTrace,
-		TextDocumentDidOpen:    s.textDocumentDidOpenHandler,
-		TextDocumentDidClose:   s.textDocumentDidCloseHandler,
-		TextDocumentDidChange:  s.textDocumentDidChangeHandler,
-		TextDocumentCompletion: s.textCompletionHandler,
-
-		CompletionItemResolve: func(context *glsp.Context, params *protocol.CompletionItem) (*protocol.CompletionItem, error) {
-			fmt.Println("Completion item resolve")
-			fmt.Printf("%+v\n", *context)
-			fmt.Printf("%+v\n", *params)
-
-			return nil, nil
-		},
+		Initialize:              s.initializeHandler,
+		Initialized:             s.initializedHandler,
+		Shutdown:                s.shutdownHandler,
+		SetTrace:                s.setTrace,
+		TextDocumentDidOpen:     s.textDocumentDidOpenHandler,
+		TextDocumentDidClose:    s.textDocumentDidCloseHandler,
+		TextDocumentDidChange:   s.textDocumentDidChangeHandler,
+		TextDocumentCompletion:  s.textCompletionHandler,
+		TextDocumentDefinition:  func(context *glsp.Context, params *protocol.DefinitionParams) (any, error) { return nil, nil },
+		TextDocumentDeclaration: func(context *glsp.Context, params *protocol.DeclarationParams) (any, error) { return nil, nil },
 	}
 
 	return handler

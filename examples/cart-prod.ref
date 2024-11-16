@@ -1,0 +1,6 @@
+CartProd {
+  (t.X e.X) (e.Y) = <CartProd-Bind t.X e.Y> <CartProd (e.X) (e.Y)>;
+  (/* пусто */) (e.Y) = /* пусто */;
+}
+
+$EXTERN abc fdsa;
