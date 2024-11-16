@@ -95,6 +95,7 @@ func (s *refalServer) textDocumentDidOpenHandler(
 	ctx *glsp.Context,
 	params *protocol.DidOpenTextDocumentParams,
 ) error {
+	s.logger.Sugar().Infow("textDocumentDidOpen ", zap.String("document", params.TextDocument.URI))
 	sourceCode, err := reader.ReadFile(params.TextDocument.URI)
 	if err != nil {
 		// TODO: log and wrap error
@@ -139,14 +140,33 @@ func (s *refalServer) textCompletionHandler(
 
 	document, _ := s.storage.GetDocument(params.TextDocument.URI)
 
-	// completeLine := params.TextDocumentPositionParams.Position.Line
-	// completePos := params.TextDocumentPositionParams.Position.Character
+	completeLine := params.TextDocumentPositionParams.Position.Line
+	completePos := params.TextDocumentPositionParams.Position.Character
+	fmt.Println("Line", completeLine, "Pos", completePos)
 
 	// tmp := strings.Split(document.Lines[completeLine][:completePos], " ")
 	wordToComplete := ""
+	line := document.Lines[completeLine]
+	i := int(completePos)
+	
+	if len(line) == int(completePos) {
+		i -= 1
+	}
+	
+	for  {
+		if i < 0 || line[i] == ' '  {
+			break
+		}
+
+		wordToComplete = string(line[i]) + wordToComplete
+		i -= 1
+	}
+	
+	fmt.Println("--------------", wordToComplete, line,"--------------")
 	// completion defined functions
 	for function := range document.SymbolTable.FunctionDefinitions {
-		if !strings.HasPrefix(function, wordToComplete) {
+		if !strings.HasPrefix(function, wordToComplete) ||
+			strings.ToLower(function) == strings.ToLower(wordToComplete) {
 			continue
 		}
 
@@ -165,7 +185,8 @@ func (s *refalServer) textCompletionHandler(
 
 	// completion extrenal functions
 	for function := range document.SymbolTable.ExternalDeclarations {
-		if !strings.HasPrefix(function, wordToComplete) {
+		if !strings.HasPrefix(function, wordToComplete) ||
+			strings.ToLower(function) == strings.ToLower(wordToComplete) {
 			continue
 		}
 
@@ -183,7 +204,8 @@ func (s *refalServer) textCompletionHandler(
 
 	// completion builtin functions
 	for _, function := range objects.BuiltInFunctions {
-		if !strings.HasPrefix(function.Name, wordToComplete) {
+		if !strings.HasPrefix(function.Name, wordToComplete) ||
+			strings.ToLower(function.Name) == strings.ToLower(wordToComplete) {
 			continue
 		}
 

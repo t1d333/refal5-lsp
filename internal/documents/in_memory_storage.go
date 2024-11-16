@@ -61,6 +61,7 @@ func (s *InMemoryDocumentStorage) UpdateDocument(
 	)
 
 	document.SymbolTable = ast.BuildSymbolTable(document.Ast, []byte(document.Content))
+	fmt.Println(document.SymbolTable)
 	s.SaveDocument(document.Uri, document)
 
 	return nil
