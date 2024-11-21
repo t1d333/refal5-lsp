@@ -3,7 +3,6 @@ package documents
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 
@@ -46,7 +45,6 @@ func (s *InMemoryDocumentStorage) UpdateDocument(
 	// TODO: check error
 	document, _ := s.GetDocument(uri)
 
-	fmt.Println(len(document.Content))
 	buf.Write(document.Content[:start])
 	buf.Write([]byte(change))
 	buf.Write([]byte(document.Content[end:]))
@@ -61,7 +59,6 @@ func (s *InMemoryDocumentStorage) UpdateDocument(
 	)
 
 	document.SymbolTable = ast.BuildSymbolTable(document.Ast, []byte(document.Content))
-	fmt.Println(document.SymbolTable)
 	s.SaveDocument(document.Uri, document)
 
 	return nil

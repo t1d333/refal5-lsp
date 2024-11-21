@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/t1d333/refal5-lsp/internal/documents"
 	"github.com/t1d333/refal5-lsp/internal/refal5/ast"
@@ -44,6 +46,10 @@ func positionToIndex(pos protocol.Position, content []byte) int {
 	return index
 }
 
+func (s *refalServer) PublishDiagnostics(ctx *glsp.Context, document documents.Document) {
+	s.diagnosticsPublisher(ctx, document, s)
+}
+
 func CreateRefalServer(
 	logger *zap.Logger,
 	handler *protocol.Handler,
@@ -53,15 +59,20 @@ func CreateRefalServer(
 	refalLsp := &refalServer{logger: logger, storage: storage, server: nil}
 	refalLsp.handler = refalLsp.DefaultHandler()
 	refalLsp.server = server.NewServer(refalLsp.handler, ServerName, debug)
+	refalLsp.diagnosticsPublisher = newDebouncedDiagnosticsPublisher(
+		1000*time.Millisecond,
+		publishDiagnostics,
+	)
 
 	return refalLsp
 }
 
 type refalServer struct {
-	logger  *zap.Logger
-	server  *server.Server
-	storage documents.DocumentsStorage
-	handler *protocol.Handler
+	logger               *zap.Logger
+	server               *server.Server
+	storage              documents.DocumentsStorage
+	handler              *protocol.Handler
+	diagnosticsPublisher DiagnosticPublisher
 }
 
 func (r *refalServer) Start(settings *StartSettings) error {
@@ -85,7 +96,6 @@ func (r *refalServer) Start(settings *StartSettings) error {
 		}
 		return nil
 	default:
-
 		// panic(fmt.Sprintf("unexpected server.StartMode: %#v", settings.mode))
 	}
 	return nil
@@ -106,16 +116,19 @@ func (s *refalServer) textDocumentDidOpenHandler(
 	table := ast.BuildSymbolTable(tree, []byte(sourceCode))
 
 	document := documents.Document{
-		Uri:         params.TextDocument.URI,
-		Content:     []byte(sourceCode),
-		Lines:       strings.Split(sourceCode, "\n"),
-		Ast:         tree,
-		SymbolTable: table,
+		Uri:                      params.TextDocument.URI,
+		Content:                  []byte(sourceCode),
+		Lines:                    strings.Split(sourceCode, "\n"),
+		Ast:                      tree,
+		SymbolTable:              table,
+		DiagnosticsHandlersCount: &atomic.Int64{},
 	}
 
 	if err := s.storage.SaveDocument(params.TextDocument.URI, document); err != nil {
 		return err
 	}
+
+	s.PublishDiagnostics(ctx, document)
 
 	return nil
 }
@@ -142,27 +155,24 @@ func (s *refalServer) textCompletionHandler(
 
 	completeLine := params.TextDocumentPositionParams.Position.Line
 	completePos := params.TextDocumentPositionParams.Position.Character
-	fmt.Println("Line", completeLine, "Pos", completePos)
 
-	// tmp := strings.Split(document.Lines[completeLine][:completePos], " ")
 	wordToComplete := ""
 	line := document.Lines[completeLine]
 	i := int(completePos)
-	
+
 	if len(line) == int(completePos) {
 		i -= 1
 	}
-	
-	for  {
-		if i < 0 || line[i] == ' '  {
+
+	for {
+		if i < 0 || line[i] == ' ' {
 			break
 		}
 
 		wordToComplete = string(line[i]) + wordToComplete
 		i -= 1
 	}
-	
-	fmt.Println("--------------", wordToComplete, line,"--------------")
+
 	// completion defined functions
 	for function := range document.SymbolTable.FunctionDefinitions {
 		if !strings.HasPrefix(function, wordToComplete) ||
@@ -249,9 +259,6 @@ func (s *refalServer) textDocumentDidChangeHandler(
 	ctx *glsp.Context,
 	params *protocol.DidChangeTextDocumentParams,
 ) error {
-	fmt.Println("Did change")
-	fmt.Printf("%+v\n", *params)
-
 	for _, change := range params.ContentChanges {
 		documentURI := params.TextDocument.URI
 		// TODO: check err
@@ -274,6 +281,9 @@ func (s *refalServer) textDocumentDidChangeHandler(
 
 	}
 
+	document, _ := s.storage.GetDocument(params.TextDocument.URI)
+
+	s.PublishDiagnostics(ctx, document)
 	return nil
 }
 
@@ -296,9 +306,6 @@ func (s *refalServer) initializedHandler(
 	context *glsp.Context,
 	params *protocol.InitializedParams,
 ) error {
-	fmt.Println("Initialized")
-	fmt.Printf("%+v\n", *context)
-	fmt.Printf("%+v\n", *params)
 	return nil
 }
 

@@ -7,7 +7,8 @@ toolchain go1.23.2
 require (
 	github.com/TobiasYin/go-lsp v0.0.0-20231106040121-c84e66f01aa4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/gorilla/websocket v1.5.1 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
@@ -26,7 +27,7 @@ require (
 	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82 // indirect
 	github.com/sourcegraph/jsonrpc2 v0.2.0 // indirect
 	github.com/tliron/commonlog v0.2.19 // indirect
-	github.com/tliron/glsp v0.2.2 // indirect
+	github.com/tliron/glsp v0.2.3-0.20240808170048-d7cfc1c7abca // indirect
 	github.com/tliron/kutil v0.3.26 // indirect
 	github.com/tree-sitter/tree-sitter v0.24.3 // indirect
 	go.lsp.dev/jsonrpc2 v0.10.0 // indirect
