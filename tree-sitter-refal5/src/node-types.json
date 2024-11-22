@@ -23,12 +23,8 @@
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
+            "type": "grouped_expr",
+            "named": true
           },
           {
             "type": "ident",
@@ -53,20 +49,12 @@
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
+            "type": "function_call",
+            "named": true
           },
           {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "<",
-            "named": false
-          },
-          {
-            "type": ">",
-            "named": false
+            "type": "grouped_expr",
+            "named": true
           },
           {
             "type": "ident",
@@ -118,6 +106,52 @@
     "type": "external_modifier",
     "named": true,
     "fields": {}
+  },
+  {
+    "type": "function_call",
+    "named": true,
+    "fields": {
+      "expr": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "function_call",
+            "named": true
+          },
+          {
+            "type": "grouped_expr",
+            "named": true
+          },
+          {
+            "type": "ident",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "variable",
+            "named": true
+          }
+        ]
+      },
+      "ident": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "ident",
+            "named": true
+          }
+        ]
+      }
+    }
   },
   {
     "type": "function_definition",
@@ -172,6 +206,41 @@
     }
   },
   {
+    "type": "grouped_expr",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "function_call",
+          "named": true
+        },
+        {
+          "type": "grouped_expr",
+          "named": true
+        },
+        {
+          "type": "ident",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "variable",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "sentence",
     "named": true,
     "fields": {},
@@ -214,6 +283,10 @@
           "named": true
         },
         {
+          "type": "grouped_expr",
+          "named": true
+        },
+        {
           "type": "ident",
           "named": true
         },
@@ -251,20 +324,12 @@
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
+            "type": "function_call",
+            "named": true
           },
           {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "<",
-            "named": false
-          },
-          {
-            "type": ">",
-            "named": false
+            "type": "grouped_expr",
+            "named": true
           },
           {
             "type": "ident",
@@ -295,15 +360,11 @@
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
-          },
-          {
             "type": "condition",
+            "named": true
+          },
+          {
+            "type": "grouped_expr",
             "named": true
           },
           {
@@ -329,20 +390,12 @@
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
+            "type": "function_call",
+            "named": true
           },
           {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "<",
-            "named": false
-          },
-          {
-            "type": ">",
-            "named": false
+            "type": "grouped_expr",
+            "named": true
           },
           {
             "type": "ident",

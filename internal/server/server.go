@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/t1d333/refal5-lsp/internal/documents"
@@ -116,12 +115,11 @@ func (s *refalServer) textDocumentDidOpenHandler(
 	table := ast.BuildSymbolTable(tree, []byte(sourceCode))
 
 	document := documents.Document{
-		Uri:                      params.TextDocument.URI,
-		Content:                  []byte(sourceCode),
-		Lines:                    strings.Split(sourceCode, "\n"),
-		Ast:                      tree,
-		SymbolTable:              table,
-		DiagnosticsHandlersCount: &atomic.Int64{},
+		Uri:         params.TextDocument.URI,
+		Content:     []byte(sourceCode),
+		Lines:       strings.Split(sourceCode, "\n"),
+		Ast:         tree,
+		SymbolTable: table,
 	}
 
 	if err := s.storage.SaveDocument(params.TextDocument.URI, document); err != nil {

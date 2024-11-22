@@ -86,8 +86,10 @@ module.exports = grammar({
       $.string,
       $.number,
       $.variable,
-      seq('(', optional($._pattern), ')')
+      $.grouped_expr,
     )),
+
+    grouped_pattern: $ => seq('(', optional($._pattern), ')'),
 
     condition: $ => seq(
         ',',
@@ -102,11 +104,30 @@ module.exports = grammar({
         $.string,
         $.number,
         $.variable,
-        seq('<', $.ident,  optional($._expr), '>'),
-        seq('(', optional($._expr), ')')
+        $.function_call,
+        $.grouped_expr,
       )
     ),
 
+    function_call: $ => seq(
+      '<',
+      field(
+        "ident",
+        $.ident
+      ),
+      field(
+        "expr",
+        optional($._expr)
+      ),
+      '>'
+    ), 
+
+    grouped_expr: $ =>  seq(
+      '(',
+      optional($._expr),
+      ')'
+    ),
+    
     variable: $ => seq(
       field('type', $.type),
       '.',

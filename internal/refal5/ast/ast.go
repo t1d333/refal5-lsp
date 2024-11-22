@@ -31,25 +31,15 @@ func BuildAst(ctx context.Context, oldTree *Ast, sourceCode []byte) *Ast {
 	}
 }
 
-func (t *Ast) Diagnostics() ([]AstError, error) {
-	query, err := sitter.NewQuery([]byte(`
-		(ERROR) @error
-	`), tree_sitter_refal5.GetLanguage())
-	if err != nil {
-		panic(err)
-	}
-
-	cursor := sitter.NewQueryCursor()
-	cursor.Exec(query, t.tree.RootNode())
-
+func (t *Ast) Diagnostics(sourceCoude []byte) ([]AstError, error) {
+	
 	errors := []AstError{}
-	for {
-		match, ok := cursor.NextMatch()
-		if !ok {
-			break
+	iter := sitter.NewIterator(t.tree.RootNode(), sitter.BFSMode)
+	iter.ForEach(func(node *sitter.Node) error {
+		if !node.HasError() {
+			return nil
 		}
-		for _, cap := range match.Captures {
-			node := cap.Node
+		if node.IsMissing() {
 			errors = append(errors, AstError{
 				Start: Position{
 					Line:   node.Range().StartPoint.Row,
@@ -60,10 +50,25 @@ func (t *Ast) Diagnostics() ([]AstError, error) {
 					Column: node.Range().EndPoint.Column,
 				},
 				Type:        SyntaxError,
-				Description: "Unexpected symbol",
+				Description:  "Expected " + node.Type(),
+			})
+		} else if node.IsError() {
+			errors = append(errors, AstError{
+				Start: Position{
+					Line:   node.Range().StartPoint.Row,
+					Column: node.Range().StartPoint.Column,
+				},
+				End: Position{
+					Line:   node.Range().EndPoint.Row,
+					Column: node.Range().EndPoint.Column,
+				},
+				Type:        SyntaxError,
+				Description: "Unexpected token",
 			})
 		}
-	}
+		return nil
+	})
+
 	t.lastDiagnostics = errors
 	return errors, nil
 }

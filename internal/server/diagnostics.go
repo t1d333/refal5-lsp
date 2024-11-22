@@ -24,7 +24,6 @@ func publishDiagnostics(
 		errors, _ = document.Diagnostics()
 	}
 
-
 	items := []protocol.Diagnostic{}
 	for _, err := range errors {
 		item := protocol.Diagnostic{
