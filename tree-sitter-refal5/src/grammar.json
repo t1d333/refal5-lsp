@@ -415,7 +415,7 @@
         },
         {
           "type": "FIELD",
-          "name": "ident",
+          "name": "name",
           "content": {
             "type": "SYMBOL",
             "name": "ident"
@@ -423,7 +423,7 @@
         },
         {
           "type": "FIELD",
-          "name": "expr",
+          "name": "param",
           "content": {
             "type": "CHOICE",
             "members": [

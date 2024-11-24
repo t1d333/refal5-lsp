@@ -111,7 +111,17 @@
     "type": "function_call",
     "named": true,
     "fields": {
-      "expr": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "ident",
+            "named": true
+          }
+        ]
+      },
+      "param": {
         "multiple": true,
         "required": false,
         "types": [
@@ -137,16 +147,6 @@
           },
           {
             "type": "variable",
-            "named": true
-          }
-        ]
-      },
-      "ident": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "ident",
             "named": true
           }
         ]

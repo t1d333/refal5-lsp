@@ -340,9 +340,9 @@ enum ts_field_identifiers {
   field_entry = 3,
   field_expr = 4,
   field_func_name_list = 5,
-  field_ident = 6,
-  field_lhs = 7,
-  field_name = 8,
+  field_lhs = 6,
+  field_name = 7,
+  field_param = 8,
   field_pattern = 9,
   field_result = 10,
   field_rhs = 11,
@@ -356,9 +356,9 @@ static const char * const ts_field_names[] = {
   [field_entry] = "entry",
   [field_expr] = "expr",
   [field_func_name_list] = "func_name_list",
-  [field_ident] = "ident",
   [field_lhs] = "lhs",
   [field_name] = "name",
+  [field_param] = "param",
   [field_pattern] = "pattern",
   [field_result] = "result",
   [field_rhs] = "rhs",
@@ -429,7 +429,7 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
     {field_name, 2},
     {field_type, 0},
   [22] =
-    {field_ident, 1},
+    {field_name, 1},
   [23] =
     {field_pattern, 3},
     {field_result, 1},
@@ -440,8 +440,8 @@ static const TSFieldMapEntry ts_field_map_entries[] = {
   [28] =
     {field_block, 3},
   [29] =
-    {field_expr, 2},
-    {field_ident, 1},
+    {field_name, 1},
+    {field_param, 2},
   [31] =
     {field_body, 2},
   [32] =

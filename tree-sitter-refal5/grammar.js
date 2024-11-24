@@ -112,11 +112,11 @@ module.exports = grammar({
     function_call: $ => seq(
       '<',
       field(
-        "ident",
+        "name",
         $.ident
       ),
       field(
-        "expr",
+        "param",
         optional($._expr)
       ),
       '>'

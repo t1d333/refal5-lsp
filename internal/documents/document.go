@@ -14,7 +14,7 @@ type Document struct {
 }
 
 func (d *Document) Diagnostics() ([]ast.AstError, error) {
-	errors, err := d.Ast.Diagnostics(d.Content)
+	errors, err := d.Ast.Diagnostics(d.Content, d.SymbolTable)
 	d.LastDiagnostics = errors
 
 	return errors, err
