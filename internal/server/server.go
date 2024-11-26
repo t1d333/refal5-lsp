@@ -59,7 +59,7 @@ func CreateRefalServer(
 	refalLsp.handler = refalLsp.DefaultHandler()
 	refalLsp.server = server.NewServer(refalLsp.handler, ServerName, debug)
 	refalLsp.diagnosticsPublisher = newDebouncedDiagnosticsPublisher(
-		300*time.Millisecond,
+		100*time.Millisecond,
 		publishDiagnostics,
 	)
 
