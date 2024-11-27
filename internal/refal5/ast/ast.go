@@ -9,8 +9,6 @@ import (
 	"github.com/t1d333/refal5-lsp/internal/tree_sitter_refal5"
 )
 
-type diagnosticsRunner func(t *Ast) ([]AstError, error)
-
 type Ast struct {
 	tree            *sitter.Tree
 	parser          *sitter.Parser
@@ -70,18 +68,144 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 	})
 
 	cursor := sitter.NewQueryCursor()
-	defer cursor.Close()
+	root := t.tree.RootNode()
 
 	query, _ := sitter.NewQuery([]byte(`
 	(function_call
   name: (ident) @function_name
   param: (_)* @parameters)`), tree_sitter_refal5.GetLanguage())
 
-	defer query.Close()
+	cursor.Exec(query, root)
 
-	root := t.tree.RootNode()
+	errors = append(errors, t.diagnosticsFunctionUsage(cursor, table, sourceCode)...)
+
+	query.Close()
+
+	// TODO: move to method, maybe visitor pattern
+	// check double function definition
+
+	cursor = sitter.NewQueryCursor()
+	query, _ = sitter.NewQuery([]byte(`
+	(function_definition
+		name: (ident) @function_name
+		body: (body) @body
+	)`), tree_sitter_refal5.GetLanguage())
 
 	cursor.Exec(query, root)
+	definedFunctions := map[string]sitter.Range{}
+	for {
+		match, ok := cursor.NextMatch()
+		if !ok {
+			break
+		}
+
+		functionNameNode := match.Captures[0].Node
+		functionName := functionNameNode.Content(sourceCode)
+		if pos, ok := definedFunctions[functionName]; ok {
+			errors = append(errors,
+				NewAlreadyDefinedFunctionError(
+					functionName,
+					Position{
+						Line:   functionNameNode.Range().StartPoint.Row,
+						Column: functionNameNode.Range().StartPoint.Column,
+					},
+					Position{
+						Line:   functionNameNode.Range().EndPoint.Row,
+						Column: functionNameNode.Range().EndPoint.Column,
+					},
+					Position{
+						Line:   pos.StartPoint.Row,
+						Column: pos.StartPoint.Column,
+					},
+				),
+			)
+		} else {
+			definedFunctions[functionName] = functionNameNode.Range()
+		}
+	}
+
+	// TODO: move to method, maybe visitor pattern
+
+	cursor = sitter.NewQueryCursor()
+	query, _ = sitter.NewQuery([]byte(`
+	(external_declaration
+		(
+			function_name_list
+			(ident) @external_function_name
+		)
+	)`), tree_sitter_refal5.GetLanguage())
+	cursor.Exec(query, root)
+
+	declaredFunctions := map[string]sitter.Range{}
+	for {
+		match, ok := cursor.NextMatch()
+		if !ok {
+			break
+		}
+
+		for _, capture := range match.Captures {
+			node := capture.Node
+			if pos, ok := definedFunctions[capture.Node.Content(sourceCode)]; ok {
+				errors = append(
+					errors,
+					NewAlreadyDefinedFunctionError(node.Content(sourceCode), Position{
+						Line:   node.Range().StartPoint.Row,
+						Column: node.Range().StartPoint.Column,
+					}, Position{
+						Line:   node.Range().EndPoint.Row,
+						Column: node.Range().EndPoint.Column,
+					}, Position{
+						pos.StartPoint.Row,
+						pos.StartPoint.Column,
+					}),
+				)
+			} else if pos, ok := declaredFunctions[node.Content(sourceCode)]; ok {
+				errors = append(errors, NewAlreadyDeclaredFunctionError(node.Content(sourceCode), Position{
+					Line:   node.Range().StartPoint.Row,
+					Column: node.Range().StartPoint.Column,
+				}, Position{
+					Line:   node.Range().EndPoint.Row,
+					Column: node.Range().EndPoint.Column,
+				}, Position{
+					pos.StartPoint.Row,
+					pos.StartPoint.Column,
+				}),
+				)
+			} else {
+				declaredFunctions[node.Content(sourceCode)] = node.Range()
+			}
+		}
+	}
+
+	// check variable usages
+	query, err := sitter.NewQuery([]byte(`
+	(function_definition
+		(ident)
+		(body
+			(sentence) @sentence	
+		)
+	) `), tree_sitter_refal5.GetLanguage())
+	// TODO: log error
+	if err != nil {
+	}
+
+	cursor = sitter.NewQueryCursor()
+	cursor.Exec(query, root)
+
+	errors = append(
+		errors,
+		t.diagnosticsVarUsage(cursor, map[string][]sitter.Range{}, sourceCode)...)
+
+	t.lastDiagnostics = errors
+	return errors, nil
+}
+
+func (t *Ast) diagnosticsFunctionUsage(
+	cursor *sitter.QueryCursor,
+	table *SymbolTable,
+	sourceCode []byte,
+) []AstError {
+	errors := []AstError{}
 
 	for {
 		match, ok := cursor.NextMatch()
@@ -121,60 +245,24 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 		}
 	}
 
-	// TODO: move to method, maybe visitor pattern
-	// check double function definition
-	cursor = sitter.NewQueryCursor()
-	defer cursor.Close()
+	return errors
+}
 
-	query, _ = sitter.NewQuery([]byte(`
-	(function_definition
-		name: (ident) @function_name
-		body: (body) @body
-	)`), tree_sitter_refal5.GetLanguage())
+func (t *Ast) diagnosticsVarUsage(
+	cursor *sitter.QueryCursor,
+	definedVars map[string][]sitter.Range,
+	sourceCode []byte,
+) []AstError {
+	errors := []AstError{}
 
-	defer query.Close()
+	tmp := map[string][]sitter.Range{}
 
-	root = t.tree.RootNode()
-	cursor.Exec(query, root)
-	definedFunctions := map[string]sitter.Range{}
-	for {
-		match, ok := cursor.NextMatch()
-		if !ok {
-			break
-		}
-
-		functionNameNode := match.Captures[0].Node
-		functionName := functionNameNode.Content(sourceCode)
-		if _, ok := definedFunctions[functionName]; ok {
-			errors = append(errors, AstError{
-				Start: Position{
-					Line:   functionNameNode.Range().StartPoint.Row,
-					Column: functionNameNode.Range().StartPoint.Column,
-				},
-				End: Position{
-					Line:   functionNameNode.Range().EndPoint.Row,
-					Column: functionNameNode.Range().EndPoint.Column,
-				},
-				Type:        SemanticError,
-				Description: fmt.Sprintf("Function with name: \"%s\" already exists", functionName),
-			})
-		} else {
-			definedFunctions[functionName] = functionNameNode.Range()
-		}
+	for variable, rng := range definedVars {
+		tmp[variable] = rng
 	}
 
-	// TODO: move to method, maybe visitor pattern
-	cursor = sitter.NewQueryCursor()
-	defer cursor.Close()
+	definedVars = tmp
 
-	query, _ = sitter.NewQuery([]byte(`
-	(external_declaration
-  func_name_list: (function_name_list (ident) @external_function_name))`), tree_sitter_refal5.GetLanguage())
-	defer query.Close()
-
-	root = t.tree.RootNode()
-	cursor.Exec(query, root)
-	declaredFunctions := map[string]sitter.Range{}
 	for {
 		match, ok := cursor.NextMatch()
 		if !ok {
@@ -182,67 +270,6 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 		}
 
 		for _, capture := range match.Captures {
-			node := capture.Node
-			if pos, ok := definedFunctions[capture.Node.Content(sourceCode)]; ok {
-				errors = append(errors, AstError{
-					Start: Position{
-						Line:   node.Range().StartPoint.Row,
-						Column: node.Range().StartPoint.Column,
-					},
-					End: Position{
-						Line:   node.Range().EndPoint.Row,
-						Column: node.Range().EndPoint.Column,
-					},
-					Type: SemanticError,
-					Description: fmt.Sprintf(
-						"Function with name: \"%s\" already defined at position (%d, %d)",
-						node.Content(sourceCode),
-						pos.StartPoint.Row+1,
-						pos.StartPoint.Column+1,
-					),
-				})
-			} else if pos, ok := declaredFunctions[node.Content(sourceCode)]; ok {
-				errors = append(errors, AstError{
-					Start: Position{
-						Line:   node.Range().StartPoint.Row,
-						Column: node.Range().StartPoint.Column,
-					},
-					End: Position{
-						Line:   node.Range().EndPoint.Row,
-						Column: node.Range().EndPoint.Column,
-					},
-					Type: SemanticError,
-					Description: fmt.Sprintf(
-						"Function with name: \"%s\" already declared at position (%d, %d)",
-						node.Content(sourceCode),
-						pos.StartPoint.Row+1,
-						pos.StartPoint.Column+1,
-					),
-				})
-			} else {
-				declaredFunctions[node.Content(sourceCode)] = node.Range()
-			}
-		}
-	}
-
-	// check variable usages
-	cursor = sitter.NewQueryCursor()
-	defer cursor.Close()
-
-	query, _ = sitter.NewQuery([]byte(`
-	(sentence) @sentence`), tree_sitter_refal5.GetLanguage())
-	defer query.Close()
-
-	root = t.tree.RootNode()
-	cursor.Exec(query, root)
-	for {
-		match, ok := cursor.NextMatch()
-		if !ok {
-			break
-		}
-
-		for _, capture := range match.Captures {
-			definedVariables := map[string][]sitter.Range{}
 			var sentenceNode *sitter.Node = nil
 			node := capture.Node
 			sentenceEq := node.ChildByFieldName("sentence_eq")
@@ -251,7 +278,7 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 			if sentenceEq != nil {
 				sentenceNode = sentenceEq
 			} else {
-				sentenceNode = sentenceBlock.ChildByFieldName("lhs")
+				sentenceNode = sentenceBlock
 			}
 			lhsNode := sentenceNode.ChildByFieldName("lhs")
 
@@ -263,10 +290,11 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 						break
 					}
 					if n.Type() == VariableNodeType {
-						if ranges, ok := definedVariables[n.Content(sourceCode)]; ok {
-							definedVariables[n.Content(sourceCode)] = append(ranges, node.Range())
+						variable := n.Content(sourceCode)
+						if ranges, ok := definedVars[variable]; ok {
+							definedVars[variable] = append(ranges, node.Range())
 						} else {
-							definedVariables[n.Content(sourceCode)] = []sitter.Range{node.Range()}
+							definedVars[variable] = []sitter.Range{node.Range()}
 						}
 					}
 				}
@@ -278,14 +306,23 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 					continue
 				}
 
+				fmt.Println(
+					"Condtion",
+					condition.String(),
+					condition.ChildByFieldName("pattern").String(),
+				)
+
 				usedVars := map[string]sitter.Range{}
 
+				fmt.Println(condition.FieldNameForChild(0))
 				for j := 0; j < int(condition.NamedChildCount()); j += 1 {
 					child := condition.NamedChild(j)
-					if child == nil {
-						continue
-					}
 
+					fmt.Println(
+						condition.FieldNameForChild(j),
+						child.String(),
+					)
+					
 					iter := sitter.NewNamedIterator(child, sitter.DFSMode)
 					iter.ForEach(func(n *sitter.Node) error {
 						if n.Type() == VariableNodeType {
@@ -293,10 +330,10 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 							if condition.FieldNameForChild(j) == "result" {
 								usedVars[variable] = n.Range()
 							} else {
-								if ranges, ok := definedVariables[variable]; ok {
-									definedVariables[variable] = append(ranges, n.Range())
+								if ranges, ok := definedVars[variable]; ok {
+									definedVars[variable] = append(ranges, n.Range())
 								} else {
-									definedVariables[variable] = []sitter.Range{n.Range()}
+									definedVars[variable] = []sitter.Range{n.Range()}
 								}
 							}
 						}
@@ -305,8 +342,9 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 				}
 
 				for usedVar := range usedVars {
+					fmt.Println(usedVar)
 					pos := usedVars[usedVar]
-					if _, ok := definedVariables[usedVar]; !ok {
+					if _, ok := definedVars[usedVar]; !ok {
 						errors = append(errors, NewUndefinedVariableError(usedVar, Position{
 							Line:   pos.StartPoint.Row,
 							Column: pos.StartPoint.Column,
@@ -326,7 +364,7 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 					if n.Type() == VariableNodeType {
 						variable := n.Content(sourceCode)
 						rng := n.Range()
-						if _, ok := definedVariables[variable]; !ok {
+						if _, ok := definedVars[variable]; !ok {
 							errors = append(errors, NewUndefinedVariableError(variable, Position{
 								Line:   rng.StartPoint.Row,
 								Column: rng.StartPoint.Column,
@@ -354,7 +392,7 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 							return nil
 						}
 						variable := n.Content(sourceCode)
-						if _, ok := definedVariables[variable]; !ok {
+						if _, ok := definedVars[variable]; !ok {
 							rng := n.Range()
 							errors = append(
 								errors,
@@ -369,17 +407,29 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 						}
 						return nil
 					})
-
 				}
+
+				query, err := sitter.NewQuery([]byte(`
+					((sentence) @sentence) `), tree_sitter_refal5.GetLanguage())
+				// TODO: log error
+				if err != nil {
+				}
+				defer query.Close()
+
+				cursor.Exec(query, sentenceBlockRhs.ChildByFieldName("body"))
+
+				errors = append(
+					errors,
+					t.diagnosticsVarUsage(cursor, definedVars, sourceCode)...)
 			}
 		}
 	}
 
-	t.lastDiagnostics = errors
-	return errors, nil
+	return errors
 }
 
-func (t *Ast) inspectCondition() {
+func (t *Ast) diagnosticFunctionDefinion() []AstError {
+	return []AstError{}
 }
 
 func (t *Ast) UpdateAst(

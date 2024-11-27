@@ -324,7 +324,11 @@
           },
           {
             "type": "SYMBOL",
-            "name": "grouped_expr"
+            "name": "grouped_pattern"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "symbols"
           }
         ]
       }
@@ -362,40 +366,40 @@
           "value": ","
         },
         {
-          "type": "FIELD",
-          "name": "result",
-          "content": {
-            "type": "CHOICE",
-            "members": [
-              {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "result",
+              "content": {
                 "type": "SYMBOL",
                 "name": "_expr"
-              },
-              {
-                "type": "BLANK"
               }
-            ]
-          }
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         },
         {
           "type": "STRING",
           "value": ":"
         },
         {
-          "type": "FIELD",
-          "name": "pattern",
-          "content": {
-            "type": "CHOICE",
-            "members": [
-              {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "pattern",
+              "content": {
                 "type": "SYMBOL",
                 "name": "_pattern"
-              },
-              {
-                "type": "BLANK"
               }
-            ]
-          }
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         }
       ]
     },
@@ -427,6 +431,10 @@
           {
             "type": "SYMBOL",
             "name": "grouped_expr"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "symbols"
           }
         ]
       }
@@ -546,6 +554,10 @@
     "number": {
       "type": "PATTERN",
       "value": "('-'|'+')?\\d+"
+    },
+    "symbols": {
+      "type": "PATTERN",
+      "value": "\\'[^\\'\\n]*\\'"
     },
     "entry_modifier": {
       "type": "STRING",

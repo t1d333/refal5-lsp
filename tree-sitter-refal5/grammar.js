@@ -87,16 +87,17 @@ module.exports = grammar({
       $.string,
       $.number,
       $.variable,
-      $.grouped_expr,
+      $.grouped_pattern,
+      $.symbols
     )),
 
     grouped_pattern: $ => seq('(', optional($._pattern), ')'),
 
     condition: $ => seq(
         ',',
-        field('result', optional($._expr)),
+        optional(field('result', $._expr)),
         ':',
-        field('pattern', optional($._pattern)),
+        optional(field('pattern', $._pattern)),
     ),
 
     _expr: $ => repeat1(
@@ -107,6 +108,7 @@ module.exports = grammar({
         $.variable,
         $.function_call,
         $.grouped_expr,
+        $.symbols
       )
     ),
 
@@ -146,6 +148,8 @@ module.exports = grammar({
     string: $ => /\"[^\"\n]*\"/,
     
     number: $ => /('-'|'+')?\d+/,
+    
+    symbols: $ => /\'[^\'\n]*\'/,
     
     entry_modifier: $ => '$ENTRY',
     
