@@ -42,7 +42,7 @@ module.exports = grammar({
 
     body: $ => seq(
       '{',
-      repeat1(
+      repeat(
         seq($.sentence, ';')
       ),
       optional($.sentence),
@@ -50,35 +50,36 @@ module.exports = grammar({
     ),
 
     sentence: $ => choice(
-      $.sentenceEq, 
-      $.sentenceBlock 
+      field("sentence_eq" ,$.sentence_eq), 
+      field("sentence_block", $.sentence_block), 
     ),
 
-    sentenceEq: $ => seq(
-      field(
-        "lhs",
-        seq(
-          optional($._pattern), 
-          repeat($.condition)
-        )
-      ),
+    sentence_eq: $ => seq(
+      optional(field("lhs", $.sentence_lhs)), 
+      repeat(field("condition", $.condition)),
       "=",
-      field("rhs", optional($._expr)),
+      optional(field("rhs", $.sentence_rhs)),
     ),
 
-    sentenceBlock: $ => seq(
-      optional($._pattern), 
-      repeat($.condition),
+    sentence_block: $ => seq(
+      optional(field("lhs", $.sentence_lhs)), 
+      repeat(field("condition", $.condition)),
       ',',
-      field('block', $.sentenceBlockEnd),
+      field('block', $.sentence_block_end),
+    ),
+
+    sentence_lhs: $ => seq(
+      $._pattern
     ),
     
-    sentenceBlockEnd: $ => seq(
+    sentence_rhs: $ => seq(
+      $._expr
+    ),
+    
+    sentence_block_end: $ => seq(
       field('expr', optional($._expr)), 
       ':',
-      '{',
       field('body', $.body), 
-      '}'
     ),
     
     _pattern: $ => repeat1(choice(
@@ -86,14 +87,17 @@ module.exports = grammar({
       $.string,
       $.number,
       $.variable,
-      seq('(', optional($._pattern), ')')
+      $.grouped_pattern,
+      $.symbols
     )),
+
+    grouped_pattern: $ => seq('(', optional($._pattern), ')'),
 
     condition: $ => seq(
         ',',
-        field('result', optional($._expr)),
+        optional(field('result', $._expr)),
         ':',
-        field('pattern', optional($._pattern)),
+        optional(field('pattern', $._pattern)),
     ),
 
     _expr: $ => repeat1(
@@ -102,11 +106,31 @@ module.exports = grammar({
         $.string,
         $.number,
         $.variable,
-        seq('<', $.ident,  optional($._expr), '>'),
-        seq('(', optional($._expr), ')')
+        $.function_call,
+        $.grouped_expr,
+        $.symbols
       )
     ),
 
+    function_call: $ => seq(
+      '<',
+      field(
+        "name",
+        $.ident
+      ),
+      field(
+        "param",
+        optional($._expr)
+      ),
+      '>'
+    ), 
+
+    grouped_expr: $ =>  seq(
+      '(',
+      optional($._expr),
+      ')'
+    ),
+    
     variable: $ => seq(
       field('type', $.type),
       '.',
@@ -121,9 +145,11 @@ module.exports = grammar({
       't'
     ),
 
-    string: $ => /\"[^\n]*\"/,
+    string: $ => /\"[^\"\n]*\"/,
     
     number: $ => /('-'|'+')?\d+/,
+    
+    symbols: $ => /\'[^\'\n]*\'/,
     
     entry_modifier: $ => '$ENTRY',
     

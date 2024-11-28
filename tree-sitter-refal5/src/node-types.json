@@ -5,7 +5,7 @@
     "fields": {},
     "children": {
       "multiple": true,
-      "required": true,
+      "required": false,
       "types": [
         {
           "type": "sentence",
@@ -23,12 +23,8 @@
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
+            "type": "grouped_pattern",
+            "named": true
           },
           {
             "type": "ident",
@@ -40,6 +36,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "symbols",
             "named": true
           },
           {
@@ -53,20 +53,12 @@
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
+            "type": "function_call",
+            "named": true
           },
           {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "<",
-            "named": false
-          },
-          {
-            "type": ">",
-            "named": false
+            "type": "grouped_expr",
+            "named": true
           },
           {
             "type": "ident",
@@ -78,6 +70,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "symbols",
             "named": true
           },
           {
@@ -118,6 +114,56 @@
     "type": "external_modifier",
     "named": true,
     "fields": {}
+  },
+  {
+    "type": "function_call",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "ident",
+            "named": true
+          }
+        ]
+      },
+      "param": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "function_call",
+            "named": true
+          },
+          {
+            "type": "grouped_expr",
+            "named": true
+          },
+          {
+            "type": "ident",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "symbols",
+            "named": true
+          },
+          {
+            "type": "variable",
+            "named": true
+          }
+        ]
+      }
+    }
   },
   {
     "type": "function_definition",
@@ -172,45 +218,19 @@
     }
   },
   {
-    "type": "sentence",
+    "type": "grouped_expr",
     "named": true,
     "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "sentenceBlock",
-          "named": true
-        },
-        {
-          "type": "sentenceEq",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "sentenceBlock",
-    "named": true,
-    "fields": {
-      "block": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "sentenceBlockEnd",
-            "named": true
-          }
-        ]
-      }
-    },
     "children": {
       "multiple": true,
       "required": false,
       "types": [
         {
-          "type": "condition",
+          "type": "function_call",
+          "named": true
+        },
+        {
+          "type": "grouped_expr",
           "named": true
         },
         {
@@ -226,6 +246,10 @@
           "named": true
         },
         {
+          "type": "symbols",
+          "named": true
+        },
+        {
           "type": "variable",
           "named": true
         }
@@ -233,7 +257,104 @@
     }
   },
   {
-    "type": "sentenceBlockEnd",
+    "type": "grouped_pattern",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "grouped_pattern",
+          "named": true
+        },
+        {
+          "type": "ident",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "symbols",
+          "named": true
+        },
+        {
+          "type": "variable",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "sentence",
+    "named": true,
+    "fields": {
+      "sentence_block": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "sentence_block",
+            "named": true
+          }
+        ]
+      },
+      "sentence_eq": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "sentence_eq",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "sentence_block",
+    "named": true,
+    "fields": {
+      "block": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "sentence_block_end",
+            "named": true
+          }
+        ]
+      },
+      "condition": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "condition",
+            "named": true
+          }
+        ]
+      },
+      "lhs": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "sentence_lhs",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "sentence_block_end",
     "named": true,
     "fields": {
       "body": {
@@ -251,20 +372,12 @@
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
+            "type": "function_call",
+            "named": true
           },
           {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "<",
-            "named": false
-          },
-          {
-            "type": ">",
-            "named": false
+            "type": "grouped_expr",
+            "named": true
           },
           {
             "type": "ident",
@@ -276,6 +389,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "symbols",
             "named": true
           },
           {
@@ -287,81 +404,113 @@
     }
   },
   {
-    "type": "sentenceEq",
+    "type": "sentence_eq",
     "named": true,
     "fields": {
-      "lhs": {
+      "condition": {
         "multiple": true,
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
-          },
-          {
             "type": "condition",
             "named": true
-          },
+          }
+        ]
+      },
+      "lhs": {
+        "multiple": false,
+        "required": false,
+        "types": [
           {
-            "type": "ident",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "variable",
+            "type": "sentence_lhs",
             "named": true
           }
         ]
       },
       "rhs": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "<",
-            "named": false
-          },
-          {
-            "type": ">",
-            "named": false
-          },
-          {
-            "type": "ident",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "variable",
+            "type": "sentence_rhs",
             "named": true
           }
         ]
       }
+    }
+  },
+  {
+    "type": "sentence_lhs",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "grouped_pattern",
+          "named": true
+        },
+        {
+          "type": "ident",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "symbols",
+          "named": true
+        },
+        {
+          "type": "variable",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "sentence_rhs",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "function_call",
+          "named": true
+        },
+        {
+          "type": "grouped_expr",
+          "named": true
+        },
+        {
+          "type": "ident",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "symbols",
+          "named": true
+        },
+        {
+          "type": "variable",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -489,6 +638,10 @@
   },
   {
     "type": "string",
+    "named": true
+  },
+  {
+    "type": "symbols",
     "named": true
   },
   {
