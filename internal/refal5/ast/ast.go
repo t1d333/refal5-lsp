@@ -2,7 +2,6 @@ package ast
 
 import (
 	"context"
-	"fmt"
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/t1d333/refal5-lsp/internal/refal5/objects"
@@ -48,7 +47,7 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 					Column: node.Range().EndPoint.Column,
 				},
 				Type:        SyntaxError,
-				Description: "Expected " + node.Type(),
+				Description: "Expected " + node.Type() + ", but not found",
 			})
 		} else if node.IsError() {
 			errors = append(errors, AstError{
@@ -61,7 +60,7 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 					Column: node.Range().EndPoint.Column,
 				},
 				Type:        SyntaxError,
-				Description: "Unexpected token",
+				Description: "unexpected sequence of characters",
 			})
 		}
 		return nil
@@ -306,17 +305,8 @@ func (t *Ast) diagnosticsVarUsage(
 					continue
 				}
 
-				fmt.Println(
-					"Condtion",
-					condition.ChildByFieldName("result").String(),
-					condition.ChildByFieldName("pattern").String(),
-					condition.NamedChild(0).String(),
-					condition.NamedChild(1).String(),
-				)
-
 				usedVars := map[string]sitter.Range{}
 
-				fmt.Println(condition.FieldNameForChild(0))
 				for j := 0; j < int(condition.ChildCount()); j += 1 {
 
 					child := condition.Child(j)
@@ -344,7 +334,6 @@ func (t *Ast) diagnosticsVarUsage(
 				}
 
 				for usedVar := range usedVars {
-					fmt.Println(usedVar)
 					pos := usedVars[usedVar]
 					if _, ok := definedVars[usedVar]; !ok {
 						errors = append(errors, NewUndefinedVariableError(usedVar, Position{
