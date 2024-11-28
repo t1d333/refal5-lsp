@@ -300,7 +300,7 @@ func (t *Ast) diagnosticsVarUsage(
 				}
 			}
 
-			for i := 0; i < int(sentenceNode.NamedChildCount()); i += 1 {
+			for i := 0; i < int(sentenceNode.ChildCount()); i += 1 {
 				condition := sentenceNode.NamedChild(i)
 				if condition == nil || sentenceNode.FieldNameForChild(i) != "condition" {
 					continue
@@ -308,21 +308,23 @@ func (t *Ast) diagnosticsVarUsage(
 
 				fmt.Println(
 					"Condtion",
-					condition.String(),
+					condition.ChildByFieldName("result").String(),
 					condition.ChildByFieldName("pattern").String(),
+					condition.NamedChild(0).String(),
+					condition.NamedChild(1).String(),
 				)
 
 				usedVars := map[string]sitter.Range{}
 
 				fmt.Println(condition.FieldNameForChild(0))
-				for j := 0; j < int(condition.NamedChildCount()); j += 1 {
-					child := condition.NamedChild(j)
+				for j := 0; j < int(condition.ChildCount()); j += 1 {
 
-					fmt.Println(
-						condition.FieldNameForChild(j),
-						child.String(),
-					)
-					
+					child := condition.Child(j)
+
+					if !child.IsNamed() {
+						continue
+					}
+
 					iter := sitter.NewNamedIterator(child, sitter.DFSMode)
 					iter.ForEach(func(n *sitter.Node) error {
 						if n.Type() == VariableNodeType {
@@ -380,9 +382,11 @@ func (t *Ast) diagnosticsVarUsage(
 
 			sentenceBlockRhs := sentenceNode.ChildByFieldName("block")
 			if sentenceBlockRhs != nil {
-				for j := 0; j < int(sentenceBlockRhs.NamedChildCount()); j += 1 {
-					child := sentenceBlockRhs.NamedChild(j)
-					if child == nil || sentenceBlockRhs.FieldNameForChild(j) != "result" {
+				for j := 0; j < int(sentenceBlockRhs.ChildCount()); j += 1 {
+
+					child := sentenceBlockRhs.Child(j)
+
+					if !child.IsNamed() || sentenceBlockRhs.FieldNameForChild(j) != "result" {
 						continue
 					}
 
