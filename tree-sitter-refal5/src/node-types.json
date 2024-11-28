@@ -5,7 +5,7 @@
     "fields": {},
     "children": {
       "multiple": true,
-      "required": true,
+      "required": false,
       "types": [
         {
           "type": "sentence",
@@ -23,7 +23,7 @@
         "required": false,
         "types": [
           {
-            "type": "grouped_expr",
+            "type": "grouped_pattern",
             "named": true
           },
           {
@@ -36,6 +36,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "symbols",
             "named": true
           },
           {
@@ -66,6 +70,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "symbols",
             "named": true
           },
           {
@@ -143,6 +151,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "symbols",
             "named": true
           },
           {
@@ -234,6 +246,10 @@
           "named": true
         },
         {
+          "type": "symbols",
+          "named": true
+        },
+        {
           "type": "variable",
           "named": true
         }
@@ -241,49 +257,15 @@
     }
   },
   {
-    "type": "sentence",
+    "type": "grouped_pattern",
     "named": true,
     "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "sentenceBlock",
-          "named": true
-        },
-        {
-          "type": "sentenceEq",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "sentenceBlock",
-    "named": true,
-    "fields": {
-      "block": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "sentenceBlockEnd",
-            "named": true
-          }
-        ]
-      }
-    },
     "children": {
       "multiple": true,
       "required": false,
       "types": [
         {
-          "type": "condition",
-          "named": true
-        },
-        {
-          "type": "grouped_expr",
+          "type": "grouped_pattern",
           "named": true
         },
         {
@@ -299,6 +281,10 @@
           "named": true
         },
         {
+          "type": "symbols",
+          "named": true
+        },
+        {
           "type": "variable",
           "named": true
         }
@@ -306,7 +292,69 @@
     }
   },
   {
-    "type": "sentenceBlockEnd",
+    "type": "sentence",
+    "named": true,
+    "fields": {
+      "sentence_block": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "sentence_block",
+            "named": true
+          }
+        ]
+      },
+      "sentence_eq": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "sentence_eq",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "sentence_block",
+    "named": true,
+    "fields": {
+      "block": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "sentence_block_end",
+            "named": true
+          }
+        ]
+      },
+      "condition": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "condition",
+            "named": true
+          }
+        ]
+      },
+      "lhs": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "sentence_lhs",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "sentence_block_end",
     "named": true,
     "fields": {
       "body": {
@@ -344,6 +392,10 @@
             "named": true
           },
           {
+            "type": "symbols",
+            "named": true
+          },
+          {
             "type": "variable",
             "named": true
           }
@@ -352,69 +404,113 @@
     }
   },
   {
-    "type": "sentenceEq",
+    "type": "sentence_eq",
     "named": true,
     "fields": {
-      "lhs": {
+      "condition": {
         "multiple": true,
         "required": false,
         "types": [
           {
             "type": "condition",
             "named": true
-          },
+          }
+        ]
+      },
+      "lhs": {
+        "multiple": false,
+        "required": false,
+        "types": [
           {
-            "type": "grouped_expr",
-            "named": true
-          },
-          {
-            "type": "ident",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "variable",
+            "type": "sentence_lhs",
             "named": true
           }
         ]
       },
       "rhs": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "function_call",
-            "named": true
-          },
-          {
-            "type": "grouped_expr",
-            "named": true
-          },
-          {
-            "type": "ident",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "variable",
+            "type": "sentence_rhs",
             "named": true
           }
         ]
       }
+    }
+  },
+  {
+    "type": "sentence_lhs",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "grouped_pattern",
+          "named": true
+        },
+        {
+          "type": "ident",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "symbols",
+          "named": true
+        },
+        {
+          "type": "variable",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "sentence_rhs",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "function_call",
+          "named": true
+        },
+        {
+          "type": "grouped_expr",
+          "named": true
+        },
+        {
+          "type": "ident",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "symbols",
+          "named": true
+        },
+        {
+          "type": "variable",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -542,6 +638,10 @@
   },
   {
     "type": "string",
+    "named": true
+  },
+  {
+    "type": "symbols",
     "named": true
   },
   {

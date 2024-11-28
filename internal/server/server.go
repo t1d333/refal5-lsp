@@ -59,7 +59,7 @@ func CreateRefalServer(
 	refalLsp.handler = refalLsp.DefaultHandler()
 	refalLsp.server = server.NewServer(refalLsp.handler, ServerName, debug)
 	refalLsp.diagnosticsPublisher = newDebouncedDiagnosticsPublisher(
-		300*time.Millisecond,
+		200*time.Millisecond,
 		publishDiagnostics,
 	)
 
@@ -273,10 +273,7 @@ func (s *refalServer) textDocumentDidChangeHandler(
 
 			s.storage.UpdateDocument(document.Uri, event.Text, uint32(start), uint32(end))
 
-		} else {
-			// TODO: handle this case
 		}
-
 	}
 
 	document, _ := s.storage.GetDocument(params.TextDocument.URI)
