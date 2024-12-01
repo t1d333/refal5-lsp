@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/t1d333/refal5-lsp/internal/documents"
 	"github.com/t1d333/refal5-lsp/internal/refal5/ast"
@@ -59,7 +60,7 @@ func CreateRefalServer(
 	refalLsp.handler = refalLsp.DefaultHandler()
 	refalLsp.server = server.NewServer(refalLsp.handler, ServerName, debug)
 	refalLsp.diagnosticsPublisher = newDebouncedDiagnosticsPublisher(
-		200*time.Millisecond,
+		0*time.Millisecond,
 		publishDiagnostics,
 	)
 
@@ -151,19 +152,20 @@ func (s *refalServer) textCompletionHandler(
 
 	document, _ := s.storage.GetDocument(params.TextDocument.URI)
 
-	completeLine := params.TextDocumentPositionParams.Position.Line
-	completePos := params.TextDocumentPositionParams.Position.Character
+	completionLine := params.TextDocumentPositionParams.Position.Line
+	completionPos := params.TextDocumentPositionParams.Position.Character
+	completionStartPos := params.TextDocumentPositionParams.Position.Character
 
-	wordToComplete := ""
-	line := document.Lines[completeLine]
-	i := int(completePos)
-
-	if len(line) == int(completePos) {
-		i -= 1
+	if completionPos > 0 {
+		completionPos -= 1
 	}
 
+	wordToComplete := ""
+	line := document.Lines[completionLine]
+	i := int(completionPos)
+
 	for {
-		if i < 0 || line[i] == ' ' {
+		if i < 0 || unicode.IsSpace(rune(line[i])) {
 			break
 		}
 
@@ -171,9 +173,12 @@ func (s *refalServer) textCompletionHandler(
 		i -= 1
 	}
 
+
+	completionStartPos -= uint32(len(wordToComplete))
+
 	// completion defined functions
 	for function := range document.SymbolTable.FunctionDefinitions {
-		if !strings.HasPrefix(function, wordToComplete) ||
+		if !strings.HasPrefix(strings.ToLower(function), wordToComplete) ||
 			strings.ToLower(function) == strings.ToLower(wordToComplete) {
 			continue
 		}
@@ -191,9 +196,9 @@ func (s *refalServer) textCompletionHandler(
 		})
 	}
 
-	// completion extrenal functions
+	// completion external functions
 	for function := range document.SymbolTable.ExternalDeclarations {
-		if !strings.HasPrefix(function, wordToComplete) ||
+		if !strings.HasPrefix(strings.ToLower(function), wordToComplete) ||
 			strings.ToLower(function) == strings.ToLower(wordToComplete) {
 			continue
 		}
@@ -212,7 +217,7 @@ func (s *refalServer) textCompletionHandler(
 
 	// completion builtin functions
 	for _, function := range objects.BuiltInFunctions {
-		if !strings.HasPrefix(function.Name, wordToComplete) ||
+		if !strings.HasPrefix(strings.ToLower(function.Name), wordToComplete) ||
 			strings.ToLower(function.Name) == strings.ToLower(wordToComplete) {
 			continue
 		}
@@ -234,7 +239,7 @@ func (s *refalServer) textCompletionHandler(
 	// completion keywords
 
 	for _, keyword := range objects.Keywords {
-		if !strings.HasPrefix(keyword.Name, wordToComplete) {
+		if !strings.HasPrefix(strings.ToLower(keyword.Name), strings.ToLower(wordToComplete)) {
 			continue
 		}
 
@@ -249,6 +254,32 @@ func (s *refalServer) textCompletionHandler(
 	}
 
 	// completion variables
+	vars := document.Ast.NodeAt(
+		document.Content,
+		completionLine,
+		completionStartPos,
+		completionLine,
+		completionPos,
+	)
+
+	for _, variable := range vars {
+		if !strings.HasPrefix(
+			strings.ToLower(variable),
+			strings.ToLower(wordToComplete),
+		) ||
+			wordToComplete == variable {
+			continue
+		}
+
+		kind := protocol.CompletionItemKindVariable
+
+		completionItems = append(completionItems, protocol.CompletionItem{
+			Label:      variable,
+			InsertText: &variable,
+			Kind:       &kind,
+		})
+
+	}
 
 	return completionItems, nil
 }
