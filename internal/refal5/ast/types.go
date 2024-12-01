@@ -10,5 +10,8 @@ const (
 	SentenceEqNodeType          = "sentence_eq"
 	SentenceBlockNodeType       = "sentence_block"
 	SentenceBlockEndNodeType    = "sentence_block_end"
+	SentenceLhsNodeType         = "sentence_lhs"
+	SentenceRhsNodeType         = "sentence_rhs"
 	ConditionNodeType           = "condition"
+	BodyNodeType                = "body"
 )

@@ -29,6 +29,73 @@ func BuildAst(ctx context.Context, oldTree *Ast, sourceCode []byte) *Ast {
 	}
 }
 
+func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uint32) []string {
+	node := t.tree.RootNode().NamedDescendantForPointRange(sitter.Point{
+		Row:    lineStart,
+		Column: colStart,
+	}, sitter.Point{
+		Row:    lineEnd,
+		Column: colEnd,
+	})
+
+	tmp := node
+
+	varsToCompletion := map[string]struct{}{}
+
+	for {
+		if tmp == nil {
+			break
+		}
+
+		if tmp.Type() != SentenceEqNodeType && tmp.Type() != SentenceBlockNodeType {
+			tmp = tmp.Parent()
+			continue
+		}
+
+		definedVars := t.collectSentenceVariables(tmp, sourceCode, Position{})
+
+		for v := range definedVars {
+			varsToCompletion[v] = struct{}{}
+		}
+
+		tmp = tmp.Parent()
+	}
+
+	if node.Parent() != nil && node.Parent().IsError() {
+		node = node.Parent()
+		if node.Parent() != nil && node.Parent().Type() == BodyNodeType {
+			if node.PrevSibling() != nil && node.PrevSibling().Type() == ";" {
+				if node.NextNamedSibling() != nil {
+					sentence := node.NextNamedSibling()
+					sentenceVars := t.collectSentenceVariables(sentence, sourceCode, Position{})
+
+					for v := range sentenceVars {
+						varsToCompletion[v] = struct{}{}
+					}
+				}
+			} else if node.NextSibling() != nil && node.NextSibling().Type() == ";" {
+				if node.PrevNamedSibling() != nil {
+					sentence := node.PrevNamedSibling()
+
+					sentenceVars := t.collectSentenceVariables(sentence, sourceCode, Position{})
+
+					for v := range sentenceVars {
+						varsToCompletion[v] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
+	result := []string{}
+
+	for v := range varsToCompletion {
+		result = append(result, v)
+	}
+
+	return result
+}
+
 func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, error) {
 	errors := []AstError{}
 	iter := sitter.NewIterator(t.tree.RootNode(), sitter.BFSMode)
@@ -60,7 +127,7 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 					Column: node.Range().EndPoint.Column,
 				},
 				Type:        SyntaxError,
-				Description: "unexpected sequence of characters",
+				Description: "Unexpected sequence of characters",
 			})
 		}
 		return nil
@@ -249,23 +316,21 @@ func (t *Ast) diagnosticsFunctionUsage(
 
 func (t *Ast) diagnosticsVarUsage(
 	cursor *sitter.QueryCursor,
-	definedVars map[string][]sitter.Range,
+	externalVars map[string][]sitter.Range,
 	sourceCode []byte,
 ) []AstError {
 	errors := []AstError{}
-
-	tmp := map[string][]sitter.Range{}
-
-	for variable, rng := range definedVars {
-		tmp[variable] = rng
-	}
-
-	definedVars = tmp
 
 	for {
 		match, ok := cursor.NextMatch()
 		if !ok {
 			break
+		}
+
+		definedVars := map[string][]sitter.Range{}
+
+		for variable, rng := range externalVars {
+			definedVars[variable] = rng
 		}
 
 		for _, capture := range match.Captures {
@@ -423,6 +488,77 @@ func (t *Ast) diagnosticsVarUsage(
 
 func (t *Ast) diagnosticFunctionDefinion() []AstError {
 	return []AstError{}
+}
+
+func (t *Ast) collectSentenceVariables(
+	sentence *sitter.Node,
+	sourceCode []byte,
+	endPos Position,
+) map[string][]sitter.Range {
+	if sentence.Type() == SentenceNodeType {
+		if sentence.ChildByFieldName("sentence_eq") != nil {
+			sentence = sentence.ChildByFieldName("sentence_eq")
+		} else {
+			sentence = sentence.ChildByFieldName("sentence_block")
+		}
+	}
+
+	definedVars := map[string][]sitter.Range{}
+
+	lhsNode := sentence.ChildByFieldName("lhs")
+
+	if lhsNode != nil {
+		iter := sitter.NewNamedIterator(lhsNode, sitter.BFSMode)
+		for {
+			n, err := iter.Next()
+			if err != nil {
+				break
+			}
+			if n.Type() == VariableNodeType {
+				variable := n.Content(sourceCode)
+				if ranges, ok := definedVars[variable]; ok {
+					definedVars[variable] = append(ranges, sentence.Range())
+				} else {
+					definedVars[variable] = []sitter.Range{sentence.Range()}
+				}
+			}
+		}
+	}
+
+	for i := 0; i < int(sentence.ChildCount()); i += 1 {
+		condition := sentence.NamedChild(i)
+		if condition == nil || sentence.FieldNameForChild(i) != "condition" {
+			continue
+		}
+
+		for j := 0; j < int(condition.ChildCount()); j += 1 {
+
+			child := condition.Child(j)
+
+			if !child.IsNamed() {
+				continue
+			}
+
+			iter := sitter.NewNamedIterator(child, sitter.DFSMode)
+			iter.ForEach(func(n *sitter.Node) error {
+				if n.Type() == VariableNodeType {
+					variable := n.Content(sourceCode)
+					if condition.FieldNameForChild(j) == "result" {
+						return nil
+					} else {
+						if ranges, ok := definedVars[variable]; ok {
+							definedVars[variable] = append(ranges, n.Range())
+						} else {
+							definedVars[variable] = []sitter.Range{n.Range()}
+						}
+					}
+				}
+				return nil
+			})
+		}
+	}
+
+	return definedVars
 }
 
 func (t *Ast) UpdateAst(

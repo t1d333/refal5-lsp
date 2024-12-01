@@ -17,6 +17,10 @@ func BuildSymbolTable(ast *Ast, sourceCode []byte) *SymbolTable {
 		ExternalDeclarations: map[string]ExternalDeclaration{},
 	}
 
+	if iter == nil {
+		return nil
+	}
+
 	iter.ForEach(func(n *sitter.Node) error {
 		switch n.Type() {
 		case FunctionDefinitionNodeType:
