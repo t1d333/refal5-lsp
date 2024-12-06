@@ -34,7 +34,7 @@ func init() {
 	commonlog.Configure(1, nil)
 }
 
-func positionToIndex(pos protocol.Position, content []byte) int {
+func positionToIndex(pos protocol.Position, content []rune) int {
 	index := 0
 	for i := 0; i < int(pos.Line); i++ {
 		if i < int(pos.Line) {
@@ -173,7 +173,6 @@ func (s *refalServer) textCompletionHandler(
 		i -= 1
 	}
 
-
 	completionStartPos -= uint32(len(wordToComplete))
 
 	// completion defined functions
@@ -284,6 +283,34 @@ func (s *refalServer) textCompletionHandler(
 	return completionItems, nil
 }
 
+func lspPositionToByteOffset(content string, line int, character int) int {
+	lines := strings.Split(content, "\n")
+	if line >= len(lines) {
+		return len(content) // Защита на случай некорректной позиции.
+	}
+
+	// Получаем строку указанной строки LSP
+	targetLine := lines[line]
+
+	// Конвертируем character в байтовый смещение, учитывая длину UTF-8 символов
+	byteOffset := 0
+	runeCount := 0
+	for _, r := range targetLine {
+		if runeCount == character {
+			break
+		}
+		byteOffset += len(string(r)) // длина в байтах текущей руны
+		runeCount++
+	}
+
+	// Учитываем все предыдущие строки
+	for i := 0; i < line; i++ {
+		byteOffset += len(lines[i]) + 1 // Добавляем длину строки + символ новой строки
+	}
+
+	return byteOffset
+}
+
 func (s *refalServer) textDocumentDidChangeHandler(
 	ctx *glsp.Context,
 	params *protocol.DidChangeTextDocumentParams,
@@ -294,13 +321,25 @@ func (s *refalServer) textDocumentDidChangeHandler(
 
 		document, _ := s.storage.GetDocument(documentURI)
 		if event, ok := change.(protocol.TextDocumentContentChangeEvent); ok {
-			start, end := positionToIndex(
-				event.Range.Start,
-				[]byte(document.Content),
-			), positionToIndex(
-				event.Range.End,
-				[]byte(document.Content),
+
+			start := lspPositionToByteOffset(
+				string(document.Content),
+				int(event.Range.Start.Line),
+				int(event.Range.Start.Character),
 			)
+
+			end := lspPositionToByteOffset(
+				string(document.Content),
+				int(event.Range.End.Line),
+				int(event.Range.End.Character),
+			)
+			// start, end := positionToIndex(
+			// 	event.Range.Start,
+			// 	[]rune(string(document.Content)),
+			// ), positionToIndex(
+			// 	event.Range.End,
+			// 	[]rune(string(document.Content)),
+			// )
 
 			s.storage.UpdateDocument(document.Uri, event.Text, uint32(start), uint32(end))
 
@@ -318,6 +357,26 @@ func (s *refalServer) initializeHandler(
 	params *protocol.InitializeParams,
 ) (any, error) {
 	capabilities := s.handler.CreateServerCapabilities()
+
+	capabilities.SemanticTokensProvider = protocol.SemanticTokensOptions{
+		WorkDoneProgressOptions: protocol.WorkDoneProgressOptions{},
+		Legend: protocol.SemanticTokensLegend{
+			TokenTypes: []string{
+				string(protocol.SemanticTokenTypeFunction),
+				string(protocol.SemanticTokenTypeVariable),
+				string(protocol.SemanticTokenTypeComment),
+				string(protocol.SemanticTokenTypeString),
+				string(protocol.SemanticTokenTypeKeyword),
+				string(protocol.SemanticTokenTypeNumber),
+				string(protocol.SemanticTokenTypeRegexp),
+				string(protocol.SemanticTokenTypeString),
+				string(protocol.SemanticTokenTypeType),
+			},
+			TokenModifiers: []string{},
+		},
+		Range: nil,
+		Full:  true,
+	}
 
 	return protocol.InitializeResult{
 		Capabilities: capabilities,
@@ -357,6 +416,16 @@ func (s *refalServer) DefaultHandler() *protocol.Handler {
 		TextDocumentCompletion:  s.textCompletionHandler,
 		TextDocumentDefinition:  func(context *glsp.Context, params *protocol.DefinitionParams) (any, error) { return nil, nil },
 		TextDocumentDeclaration: func(context *glsp.Context, params *protocol.DeclarationParams) (any, error) { return nil, nil },
+		TextDocumentSemanticTokensFull: func(context *glsp.Context, params *protocol.SemanticTokensParams) (*protocol.SemanticTokens, error) {
+			uri := params.TextDocument.URI
+			document, _ := s.storage.GetDocument(uri)
+			tokens := document.Ast.SematnticTokens(document.Content)
+			fmt.Println("Tokens", tokens)
+			return &protocol.SemanticTokens{
+				ResultID: new(string),
+				Data:     tokens,
+			}, nil
+		},
 	}
 
 	return handler
