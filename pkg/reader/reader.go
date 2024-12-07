@@ -9,8 +9,7 @@ import (
 func ReadFile(uri string) (string, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
-		fmt.Printf("Ошибка при парсинге URI: %v\n", err)
-		os.Exit(1)
+		return "", fmt.Errorf("reader.Read(uri: %s): %v", err)
 	}
 
 	filePath := u.Path

@@ -15,6 +15,11 @@
     }
   },
   {
+    "type": "comment",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "condition",
     "named": true,
     "fields": {
@@ -210,6 +215,10 @@
         "required": true,
         "types": [
           {
+            "type": ",",
+            "named": false
+          },
+          {
             "type": "ident",
             "named": true
           }
@@ -290,6 +299,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "line_comment",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "sentence",
@@ -585,11 +599,23 @@
     "named": false
   },
   {
+    "type": "*",
+    "named": false
+  },
+  {
+    "type": "*/",
+    "named": false
+  },
+  {
     "type": ",",
     "named": false
   },
   {
     "type": ".",
+    "named": false
+  },
+  {
+    "type": "/*",
     "named": false
   },
   {
@@ -611,10 +637,6 @@
   {
     "type": ">",
     "named": false
-  },
-  {
-    "type": "comment",
-    "named": true
   },
   {
     "type": "e",
