@@ -183,6 +183,8 @@ func (s *refalServer) textCompletionHandler(
 		completionPos -= 1
 	}
 
+	// TODO: check if competion in string or comment
+
 	wordToComplete := ""
 	line := document.Lines[completionLine]
 	i := int(completionPos)
@@ -197,6 +199,7 @@ func (s *refalServer) textCompletionHandler(
 	}
 
 	completionStartPos -= uint32(len(wordToComplete))
+	wordToComplete = strings.ToLower(wordToComplete)
 
 	// completion defined functions
 	for function := range document.SymbolTable.FunctionDefinitions {
