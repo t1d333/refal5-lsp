@@ -188,28 +188,29 @@ func (s *refalServer) textCompletionHandler(
 
 	completionLine := params.TextDocumentPositionParams.Position.Line
 	completionPos := params.TextDocumentPositionParams.Position.Character
-	completionStartPos := params.TextDocumentPositionParams.Position.Character
 
 	if completionPos > 0 {
 		completionPos -= 1
 	}
 
+	completionStartPos := completionPos + 1
+
 	// TODO: check if competion in string or comment
 
 	wordToComplete := ""
-	line := document.Lines[completionLine]
+	line := []rune(document.Lines[completionLine])
 	i := int(completionPos)
 
 	for {
-		if i < 0 || unicode.IsSpace(rune(line[i])) {
+		if i < 0 || unicode.IsSpace(line[i]) {
 			break
 		}
 
 		wordToComplete = string(line[i]) + wordToComplete
 		i -= 1
+		completionStartPos -= 1
 	}
 
-	completionStartPos -= uint32(len(wordToComplete))
 	wordToComplete = strings.ToLower(wordToComplete)
 
 	// completion defined functions
@@ -289,13 +290,21 @@ func (s *refalServer) textCompletionHandler(
 
 	}
 
-	// completion variables
-	vars := document.Ast.NodeAt(
+	vars := document.Ast.VarCompletions(
 		document.Content,
+
 		completionLine,
-		completionStartPos,
+		uint32(lspPositionToByteOffset(
+			string(document.Lines[completionLine]),
+			0,
+			int(completionStartPos),
+		)),
 		completionLine,
-		completionPos,
+		uint32(lspPositionToByteOffset(
+			string(document.Lines[completionLine]),
+			0,
+			int(completionPos),
+		)),
 	)
 
 	for _, variable := range vars {
@@ -454,7 +463,6 @@ func (s *refalServer) DefaultHandler() *protocol.Handler {
 			uri := params.TextDocument.URI
 			document, _ := s.storage.GetDocument(uri)
 			tokens := document.Ast.SemanticTokens(document.Content)
-			fmt.Println("Tokens: ", tokens)
 			return &protocol.SemanticTokens{
 				ResultID: new(string),
 				Data:     tokens,

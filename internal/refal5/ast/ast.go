@@ -2,6 +2,7 @@ package ast
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -31,7 +32,10 @@ func BuildAst(ctx context.Context, oldTree *Ast, sourceCode []byte) *Ast {
 	}
 }
 
-func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uint32) []string {
+func (t *Ast) VarCompletions(
+	sourceCode []byte,
+	lineStart, colStart, lineEnd, colEnd uint32,
+) []string {
 	node := t.tree.RootNode().NamedDescendantForPointRange(sitter.Point{
 		Row:    lineStart,
 		Column: colStart,
@@ -39,6 +43,14 @@ func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uin
 		Row:    lineEnd,
 		Column: colEnd,
 	})
+
+	if node.Type() == "sentence" {
+		if node.ChildByFieldName("sentence_eq") != nil {
+			node = node.ChildByFieldName("sentence_eq")
+		} else {
+			node = node.ChildByFieldName("sentence_block")
+		}
+	}
 
 	tmp := node
 
@@ -68,19 +80,53 @@ func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uin
 			node = node.Parent()
 		}
 
+		prev := node.PrevSibling()
+		prevNamed := node.PrevNamedSibling()
+		next := node.NextSibling()
+		nextNamed := node.NextNamedSibling()
+
+		for {
+			if prev == nil || !prev.IsExtra() {
+				break
+			}
+			prev = prev.PrevSibling()
+		}
+
+		for {
+			if prevNamed == nil || !prevNamed.IsExtra() {
+				break
+			}
+			prevNamed = prevNamed.PrevNamedSibling()
+		}
+
+		for {
+			if next == nil || !next.IsExtra() {
+				break
+			}
+			next = next.NextSibling()
+		}
+
+		for {
+			if nextNamed == nil || !nextNamed.IsExtra() {
+				break
+			}
+			nextNamed = nextNamed.NextSibling()
+		}
+
 		if node.Parent() != nil && node.Parent().Type() == BodyNodeType {
-			if node.PrevSibling() != nil && node.PrevSibling().Type() == ";" {
-				if node.NextNamedSibling() != nil {
-					sentence := node.NextNamedSibling()
+			if prev != nil &&
+				(prev.Type() == ";" || prev.Type() == "{") {
+				if nextNamed != nil {
+					sentence := nextNamed
 					sentenceVars := t.collectSentenceVariables(sentence, sourceCode, Position{})
 
 					for v := range sentenceVars {
 						varsToCompletion[v] = struct{}{}
 					}
 				}
-			} else if node.NextSibling() != nil && node.NextSibling().Type() == ";" {
-				if node.PrevNamedSibling() != nil {
-					sentence := node.PrevNamedSibling()
+			} else if next != nil && (next.Type() == ";" || next.Type() == "}") {
+				if prevNamed != nil {
+					sentence := prevNamed
 
 					sentenceVars := t.collectSentenceVariables(sentence, sourceCode, Position{})
 
