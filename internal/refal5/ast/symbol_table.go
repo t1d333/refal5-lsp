@@ -21,7 +21,11 @@ func BuildSymbolTable(ast *Ast, sourceCode []byte) *SymbolTable {
 		return nil
 	}
 
-	iter.ForEach(func(n *sitter.Node) error {
+	for {
+		n, err := iter.Next()
+		if err != nil {
+			break
+		}
 		switch n.Type() {
 		case FunctionDefinitionNodeType:
 			isEntry := false
@@ -57,9 +61,8 @@ func BuildSymbolTable(ast *Ast, sourceCode []byte) *SymbolTable {
 				}
 			}
 		}
+	}
 
-		return nil
-	})
 	return table
 }
 

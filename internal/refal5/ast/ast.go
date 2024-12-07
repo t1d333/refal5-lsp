@@ -2,7 +2,6 @@ package ast
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -105,9 +104,14 @@ func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uin
 func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, error) {
 	errors := []AstError{}
 	iter := sitter.NewIterator(t.tree.RootNode(), sitter.BFSMode)
-	iter.ForEach(func(node *sitter.Node) error {
-		if !node.HasError() {
-			return nil
+
+	for {
+		node, err := iter.Next()
+		if err != nil {
+			break
+		}
+		if node == nil || !node.HasError() {
+			continue
 		}
 		if node.IsMissing() {
 			errors = append(errors, AstError{
@@ -136,8 +140,7 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 				Description: "Unexpected sequence of characters",
 			})
 		}
-		return nil
-	})
+	}
 
 	cursor := sitter.NewQueryCursor()
 	root := t.tree.RootNode()
@@ -580,9 +583,8 @@ func (t *Ast) UpdateAst(
 
 	t.tree.Edit(editInput)
 
+	// TODO: check err
 	newTree, _ := t.parser.ParseCtx(ctx, t.tree, sourceCoude)
-
-	t.tree.Close()
 	t.tree = newTree
 }
 
@@ -649,7 +651,6 @@ func (t *Ast) SematnticTokens(sourceCode []byte) []uint32 {
 		if semanticType == 999 {
 			continue
 		}
-		fmt.Println(node.Type(), node.Content(sourceCode))
 
 		if semanticType == 2 && len(strings.Split(string(node.Content(sourceCode)), "\n")) > 0 {
 			lines := strings.Split(string(node.Content(sourceCode)), "\n")

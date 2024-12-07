@@ -3,7 +3,6 @@ package documents
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 
@@ -36,7 +35,6 @@ func (s *InMemoryDocumentStorage) SaveDocument(uri string, document Document) er
 	return nil
 }
 
-// UpdateDocument implements DocumentsStorage.
 func (s *InMemoryDocumentStorage) UpdateDocument(
 	uri string,
 	change string,
@@ -48,33 +46,20 @@ func (s *InMemoryDocumentStorage) UpdateDocument(
 	document, _ := s.GetDocument(uri)
 
 	oldContent := document.Content
-	// runeContent := []rune(string(document.Content))
-	// startContent := string(runeContent[:start])
-	// endContent := string(runeContent[end:])
-	fmt.Println("Start End", start, end)
 
 	buf.Write([]byte(oldContent[:start]))
 	buf.Write([]byte(change))
 	buf.Write([]byte(oldContent[end:]))
 
 	document.Content = buf.Bytes()
-	fmt.Println(
-		"New document: ",
-		buf.String(),
-	)
+
 	document.Lines = strings.Split(string(document.Content), "\n")
 	document.Ast.UpdateAst(
 		context.Background(),
-		// uint32(symbols.RunePositionToByteOffset(string(oldContent), int(start))),
-		// uint32(symbols.RunePositionToByteOffset(string(oldContent), int(end))),
 		start, end,
 		start+uint32(len(change)),
 		[]byte(document.Content),
 	)
-
-	fmt.Println("-----------------------------------")
-	fmt.Println(string(document.Ast.String()))
-	fmt.Println("-----------------------------------")
 
 	document.SymbolTable = ast.BuildSymbolTable(document.Ast, []byte(document.Content))
 	s.SaveDocument(document.Uri, document)

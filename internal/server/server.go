@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/t1d333/refal5-lsp/internal/documents"
@@ -47,7 +46,37 @@ func positionToIndex(pos protocol.Position, content []rune) int {
 }
 
 func (s *refalServer) PublishDiagnostics(ctx *glsp.Context, document documents.Document) {
-	s.diagnosticsPublisher(ctx, document, s)
+	sev := protocol.DiagnosticSeverityError
+
+	errors, _ := document.Diagnostics()
+
+	items := []protocol.Diagnostic{}
+	for _, err := range errors {
+		item := protocol.Diagnostic{
+			Range: protocol.Range{
+				Start: protocol.Position{
+					Line:      err.Start.Line,
+					Character: err.Start.Column,
+				},
+				End: protocol.Position{
+					Line:      err.End.Line,
+					Character: err.End.Column,
+				},
+			},
+			Severity: &sev,
+			Message:  err.Description,
+		}
+		items = append(items, item)
+	}
+	s.storage.SaveDocument(document.Uri, document)
+
+	diagnostics := protocol.PublishDiagnosticsParams{
+		URI:         document.Uri,
+		Version:     new(uint32),
+		Diagnostics: items,
+	}
+
+	ctx.Notify("textDocument/publishDiagnostics", diagnostics)
 }
 
 func CreateRefalServer(
@@ -59,20 +88,14 @@ func CreateRefalServer(
 	refalLsp := &refalServer{logger: logger, storage: storage, server: nil}
 	refalLsp.handler = refalLsp.DefaultHandler()
 	refalLsp.server = server.NewServer(refalLsp.handler, ServerName, debug)
-	refalLsp.diagnosticsPublisher = newDebouncedDiagnosticsPublisher(
-		0*time.Millisecond,
-		publishDiagnostics,
-	)
-
 	return refalLsp
 }
 
 type refalServer struct {
-	logger               *zap.Logger
-	server               *server.Server
-	storage              documents.DocumentsStorage
-	handler              *protocol.Handler
-	diagnosticsPublisher DiagnosticPublisher
+	logger  *zap.Logger
+	server  *server.Server
+	storage documents.DocumentsStorage
+	handler *protocol.Handler
 }
 
 func (r *refalServer) Start(settings *StartSettings) error {
@@ -286,26 +309,23 @@ func (s *refalServer) textCompletionHandler(
 func lspPositionToByteOffset(content string, line int, character int) int {
 	lines := strings.Split(content, "\n")
 	if line >= len(lines) {
-		return len(content) // Защита на случай некорректной позиции.
+		return len(content)
 	}
 
-	// Получаем строку указанной строки LSP
 	targetLine := lines[line]
 
-	// Конвертируем character в байтовый смещение, учитывая длину UTF-8 символов
 	byteOffset := 0
 	runeCount := 0
 	for _, r := range targetLine {
 		if runeCount == character {
 			break
 		}
-		byteOffset += len(string(r)) // длина в байтах текущей руны
+		byteOffset += len(string(r))
 		runeCount++
 	}
 
-	// Учитываем все предыдущие строки
 	for i := 0; i < line; i++ {
-		byteOffset += len(lines[i]) + 1 // Добавляем длину строки + символ новой строки
+		byteOffset += len(lines[i]) + 1
 	}
 
 	return byteOffset
@@ -420,7 +440,6 @@ func (s *refalServer) DefaultHandler() *protocol.Handler {
 			uri := params.TextDocument.URI
 			document, _ := s.storage.GetDocument(uri)
 			tokens := document.Ast.SematnticTokens(document.Content)
-			fmt.Println("Tokens", tokens)
 			return &protocol.SemanticTokens{
 				ResultID: new(string),
 				Data:     tokens,
