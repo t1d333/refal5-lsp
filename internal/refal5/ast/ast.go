@@ -2,7 +2,6 @@ package ast
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"

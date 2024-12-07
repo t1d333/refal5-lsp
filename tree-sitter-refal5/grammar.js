@@ -115,9 +115,16 @@ module.exports = grammar({
 
     function_call: $ => seq(
       '<',
+      
       field(
         "name",
-        $.ident
+        choice(
+          $.ident,
+          '+',
+          '-',
+          '*',
+          '/',
+        )
       ),
       field(
         "param",
@@ -138,7 +145,7 @@ module.exports = grammar({
       field('name', $.ident),
     ), 
     
-    ident : $ => /(([A-Za-z][A-Za-z0-9_-]*)|([0-9]+))/, 
+    ident : $ => token(/(([A-Za-z][A-Za-z0-9_-]*)|([0-9]+))/), 
 
     type: $ => choice(
       's',
@@ -146,32 +153,48 @@ module.exports = grammar({
       't'
     ),
 
-    string: $ => /\"[^\"\n]*\"/,
+    string: $ => seq(
+      /"/,
+      repeat(choice(
+        prec(10, repeat1("\\\\")),
+        prec(-10, '\\"'),
+        /[^"\n]/,
+      )),
+      /"/,
+    ),
     
     number: $ => /('-'|'+')?\d+/,
     
-    symbols: $ => /\'[^\'\n]*\'/,
+    symbols: $ => seq(
+      /\'/,
+      repeat(choice(
+        prec(10, repeat1("\\\\")),
+        prec(-10, "\\'"),
+        /[^'\n]/
+      )),
+      /\'/,
+    ),
+
+    entry_modifier: $ => token(prec(10,'$ENTRY')),
     
-    entry_modifier: $ => '$ENTRY',
-    
-    external_modifier: $ => choice(
+    external_modifier: $ => token(prec(10, choice(
         '$EXTERNAL',
         '$EXTERN',
         '$EXTRN'
-    ),
+    ))),
 
-    comment: $ => seq(
+    comment: $ => token(prec(-1, seq(
       '/*',
       repeat(choice(
-        /([а-яА-ЯёЁ][а-яА-ЯёЁ0-9_])|[^\*]/,
+        /[^\*]/,
         seq('*', /[^/]/)
       )),
       '*/'             
-    ),
+    ))),
 
-    line_comment: $ => seq(
+    line_comment: $ => token(prec(-1, seq(
       '*',               
       /[^\n]*/          
-    ),
+    ))),
   }
 });
