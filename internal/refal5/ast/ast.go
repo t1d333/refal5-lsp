@@ -588,7 +588,7 @@ func (t *Ast) UpdateAst(
 	t.tree = newTree
 }
 
-func (t *Ast) SematnticTokens(sourceCode []byte) []uint32 {
+func (t *Ast) SemanticTokens(sourceCode []byte) []uint32 {
 	sourceCodeLines := strings.Split(string(sourceCode), "\n")
 	tokens := []uint32{}
 	prevStartLine := uint32(0)
@@ -689,7 +689,10 @@ func (t *Ast) SematnticTokens(sourceCode []byte) []uint32 {
 			if len(lines) > 1 {
 				prevStartCol = 0
 			} else {
-				prevStartCol = node.StartPoint().Column
+				prevStartCol = uint32(symbols.ByteOffsetToRunePosition(
+					sourceCodeLines[node.StartPoint().Row],
+					int(node.StartPoint().Column),
+				))
 			}
 		} else {
 			colDelta := uint32(0)
@@ -713,7 +716,10 @@ func (t *Ast) SematnticTokens(sourceCode []byte) []uint32 {
 			)
 
 			prevStartLine = node.StartPoint().Row
-			prevStartCol = node.StartPoint().Column
+			prevStartCol = uint32(symbols.ByteOffsetToRunePosition(
+				sourceCodeLines[node.StartPoint().Row],
+				int(node.StartPoint().Column),
+			))
 		}
 
 	}

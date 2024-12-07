@@ -10,6 +10,7 @@ import (
 	"github.com/t1d333/refal5-lsp/internal/refal5/ast"
 	"github.com/t1d333/refal5-lsp/internal/refal5/objects"
 	"github.com/t1d333/refal5-lsp/pkg/reader"
+	"github.com/t1d333/refal5-lsp/pkg/symbols"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	"github.com/tliron/glsp/server"
@@ -55,12 +56,22 @@ func (s *refalServer) PublishDiagnostics(ctx *glsp.Context, document documents.D
 		item := protocol.Diagnostic{
 			Range: protocol.Range{
 				Start: protocol.Position{
-					Line:      err.Start.Line,
-					Character: err.Start.Column,
+					Line: err.Start.Line,
+					Character: uint32(
+						symbols.ByteOffsetToRunePosition(
+							document.Lines[err.Start.Line],
+							int(err.Start.Column),
+						),
+					),
 				},
 				End: protocol.Position{
-					Line:      err.End.Line,
-					Character: err.End.Column,
+					Line: err.End.Line,
+					Character: uint32(
+						symbols.ByteOffsetToRunePosition(
+							document.Lines[err.Start.Line],
+							int(err.End.Column),
+						),
+					),
 				},
 			},
 			Severity: &sev,
@@ -442,7 +453,8 @@ func (s *refalServer) DefaultHandler() *protocol.Handler {
 		TextDocumentSemanticTokensFull: func(context *glsp.Context, params *protocol.SemanticTokensParams) (*protocol.SemanticTokens, error) {
 			uri := params.TextDocument.URI
 			document, _ := s.storage.GetDocument(uri)
-			tokens := document.Ast.SematnticTokens(document.Content)
+			tokens := document.Ast.SemanticTokens(document.Content)
+			fmt.Println("Tokens: ", tokens)
 			return &protocol.SemanticTokens{
 				ResultID: new(string),
 				Data:     tokens,
