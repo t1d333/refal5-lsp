@@ -12,7 +12,8 @@ module.exports = grammar({
   
   extras: $ => [
     /\s/,
-    $.comment
+    $.comment,
+    $.line_comment,
   ],
   
   rules: {
@@ -29,11 +30,11 @@ module.exports = grammar({
       ';'
     ),
 
-    function_name_list: $ => repeat1(
-      seq(
-        field('name', $.ident)
-      )
-    ),
+    function_name_list: $ => 
+      choice(
+        field('name', $.ident),
+        field('name', seq($.ident, repeat1(seq(',', $.ident)))),
+      ),
     
     function_definition: $ => seq( field('entry' ,optional($.entry_modifier)),
       field('name', $.ident,),
@@ -159,10 +160,18 @@ module.exports = grammar({
         '$EXTRN'
     ),
 
-    comment: $ => token(choice(
-      seq('//', /[^\n]*/),
-      seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')
-    )),
+    comment: $ => seq(
+      '/*',
+      repeat(choice(
+        /([а-яА-ЯёЁ][а-яА-ЯёЁ0-9_])|[^\*]/,
+        seq('*', /[^/]/)
+      )),
+      '*/'             
+    ),
 
+    line_comment: $ => seq(
+      '*',               
+      /[^\n]*/          
+    ),
   }
 });

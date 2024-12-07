@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/t1d333/refal5-lsp/internal/refal5/ast"
+	// "github.com/t1d333/refal5-lsp/pkg/symbols"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +35,6 @@ func (s *InMemoryDocumentStorage) SaveDocument(uri string, document Document) er
 	return nil
 }
 
-// UpdateDocument implements DocumentsStorage.
 func (s *InMemoryDocumentStorage) UpdateDocument(
 	uri string,
 	change string,
@@ -45,15 +45,18 @@ func (s *InMemoryDocumentStorage) UpdateDocument(
 	// TODO: check error
 	document, _ := s.GetDocument(uri)
 
-	buf.Write(document.Content[:start])
+	oldContent := document.Content
+
+	buf.Write([]byte(oldContent[:start]))
 	buf.Write([]byte(change))
-	buf.Write([]byte(document.Content[end:]))
+	buf.Write([]byte(oldContent[end:]))
+
 	document.Content = buf.Bytes()
+
 	document.Lines = strings.Split(string(document.Content), "\n")
 	document.Ast.UpdateAst(
 		context.Background(),
-		start,
-		end,
+		start, end,
 		start+uint32(len(change)),
 		[]byte(document.Content),
 	)

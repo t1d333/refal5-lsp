@@ -2,10 +2,12 @@ package ast
 
 import (
 	"context"
+	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/t1d333/refal5-lsp/internal/refal5/objects"
 	"github.com/t1d333/refal5-lsp/internal/tree_sitter_refal5"
+	"github.com/t1d333/refal5-lsp/pkg/symbols"
 )
 
 type Ast struct {
@@ -61,8 +63,11 @@ func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uin
 		tmp = tmp.Parent()
 	}
 
-	if node.Parent() != nil && node.Parent().IsError() {
-		node = node.Parent()
+	if node.IsError() || (node.Parent() != nil && node.Parent().IsError()) {
+		if !node.IsError() {
+			node = node.Parent()
+		}
+
 		if node.Parent() != nil && node.Parent().Type() == BodyNodeType {
 			if node.PrevSibling() != nil && node.PrevSibling().Type() == ";" {
 				if node.NextNamedSibling() != nil {
@@ -99,9 +104,14 @@ func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uin
 func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, error) {
 	errors := []AstError{}
 	iter := sitter.NewIterator(t.tree.RootNode(), sitter.BFSMode)
-	iter.ForEach(func(node *sitter.Node) error {
-		if !node.HasError() {
-			return nil
+
+	for {
+		node, err := iter.Next()
+		if err != nil {
+			break
+		}
+		if node == nil || !node.HasError() {
+			continue
 		}
 		if node.IsMissing() {
 			errors = append(errors, AstError{
@@ -130,8 +140,7 @@ func (t *Ast) Diagnostics(sourceCode []byte, table *SymbolTable) ([]AstError, er
 				Description: "Unexpected sequence of characters",
 			})
 		}
-		return nil
-	})
+	}
 
 	cursor := sitter.NewQueryCursor()
 	root := t.tree.RootNode()
@@ -574,10 +583,140 @@ func (t *Ast) UpdateAst(
 
 	t.tree.Edit(editInput)
 
+	// TODO: check err
 	newTree, _ := t.parser.ParseCtx(ctx, t.tree, sourceCoude)
-
-	t.tree.Close()
 	t.tree = newTree
+}
+
+func (t *Ast) SematnticTokens(sourceCode []byte) []uint32 {
+	sourceCodeLines := strings.Split(string(sourceCode), "\n")
+	tokens := []uint32{}
+	prevStartLine := uint32(0)
+	prevStartCol := uint32(0)
+	root := t.tree.RootNode()
+	if root == nil {
+		return tokens
+	}
+
+	iter := sitter.NewNamedIterator(root, sitter.DFSMode)
+
+	for {
+		node, err := iter.Next()
+		if err != nil {
+			return tokens
+		}
+
+		semanticType := uint32(999)
+
+		switch node.Type() {
+		case IdentNodeType:
+			if node.Parent() != nil {
+				switch node.Parent().Type() {
+				case VariableNodeType:
+					semanticType = 1
+				case FunctionDefinitionNodeType:
+					semanticType = 0
+				case FuncNameListNodeType:
+					semanticType = 0
+				case FunctionCallNodeType:
+					if node.Parent().ChildByFieldName("name").Equal(node) {
+						semanticType = 0
+					} else {
+						semanticType = 6
+					}
+				default:
+					semanticType = 6
+				}
+			} else {
+				semanticType = 6
+			}
+		case EntryModifierNodeType:
+			semanticType = 4
+		case ExternalModifierNodeType:
+			semanticType = 4
+		case NumberNodeType:
+			semanticType = 5
+		case SymbolsSeqNodeType:
+			semanticType = 6
+		case StringNodeType:
+			semanticType = 7
+		case VariableTypeNodeType:
+			semanticType = 8
+		case CommentNodeType:
+			semanticType = 2
+		case LineCommentNodeType:
+			semanticType = 2
+		}
+
+		if semanticType == 999 {
+			continue
+		}
+
+		if semanticType == 2 && len(strings.Split(string(node.Content(sourceCode)), "\n")) > 0 {
+			lines := strings.Split(string(node.Content(sourceCode)), "\n")
+
+			colDelta := uint32(0)
+			if prevStartLine == node.StartPoint().Row {
+				colDelta = prevStartCol
+			}
+
+			tokens = append(
+				tokens,
+				node.StartPoint().Row-prevStartLine,
+				uint32(
+					symbols.ByteOffsetToRunePosition(
+						sourceCodeLines[node.StartPoint().Row],
+						int(node.StartPoint().Column),
+					),
+				)-colDelta,
+				uint32(len([]rune(lines[0]))),
+				semanticType,
+				0,
+			)
+
+			for i := 1; i < len(lines); i += 1 {
+				tokens = append(
+					tokens,
+					1,
+					0,
+					uint32(len([]rune(lines[i]))),
+					semanticType,
+					0,
+				)
+			}
+
+			prevStartLine = node.EndPoint().Row
+			if len(lines) > 1 {
+				prevStartCol = 0
+			} else {
+				prevStartCol = node.StartPoint().Column
+			}
+		} else {
+			colDelta := uint32(0)
+
+			if prevStartLine == node.StartPoint().Row {
+				colDelta = prevStartCol
+			}
+
+			tokens = append(
+				tokens,
+				node.StartPoint().Row-prevStartLine,
+				uint32(
+					symbols.ByteOffsetToRunePosition(
+						sourceCodeLines[node.StartPoint().Row],
+						int(node.StartPoint().Column),
+					),
+				)-colDelta,
+				uint32(len([]rune(node.Content(sourceCode)))),
+				semanticType,
+				0,
+			)
+
+			prevStartLine = node.StartPoint().Row
+			prevStartCol = node.StartPoint().Column
+		}
+
+	}
 }
 
 func (t *Ast) GetFunctions() {

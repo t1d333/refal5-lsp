@@ -14,4 +14,13 @@ const (
 	SentenceRhsNodeType         = "sentence_rhs"
 	ConditionNodeType           = "condition"
 	BodyNodeType                = "body"
+	SymbolsSeqNodeType          = "symbols"
+	StringNodeType              = "string"
+	NumberNodeType              = "number"
+	IdentNodeType               = "ident"
+	CommentNodeType             = "comment"
+	FunctionCallNodeType        = "function_call"
+	VariableTypeNodeType        = "type"
+	FuncNameListNodeType        = "function_name_list"
+	LineCommentNodeType         = "line_comment"
 )
