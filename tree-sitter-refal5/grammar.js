@@ -39,6 +39,7 @@ module.exports = grammar({
     function_definition: $ => seq( field('entry' ,optional($.entry_modifier)),
       field('name', $.ident,),
       field('body', $.body),
+      optional(';')
     ),
 
     body: $ => seq(
@@ -46,7 +47,10 @@ module.exports = grammar({
       repeat(
         seq($.sentence, ';')
       ),
-      optional($.sentence),
+      choice(
+        $.sentence,
+        seq($.sentence, ';')
+      ),
       '}'
     ),
 
