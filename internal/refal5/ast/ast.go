@@ -703,12 +703,17 @@ func (t *Ast) SemanticTokens(sourceCode []byte) []uint32 {
 			} else {
 				semanticType = 6
 			}
+
 		case EntryModifierNodeType:
 			semanticType = 4
 		case ExternalModifierNodeType:
 			semanticType = 4
 		case NumberNodeType:
-			semanticType = 5
+			if node.Parent() != nil && node.Parent().Type() == VariableNodeType {
+				semanticType = 1
+			} else {
+				semanticType = 5
+			}
 		case SymbolsSeqNodeType:
 			semanticType = 6
 		case StringNodeType:

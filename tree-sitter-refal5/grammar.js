@@ -146,10 +146,15 @@ module.exports = grammar({
     variable: $ => seq(
       field('type', $.type),
       '.',
-      field('name', $.ident),
+      field('name', $._index),
+    ), 
+
+    _index: $ => choice(
+        $.ident,
+        $.number
     ), 
     
-    ident : $ => token(/(([A-Za-z][A-Za-z0-9_-]*)|([0-9]+))/), 
+    ident : $ => token(/([A-Za-z][A-Za-z0-9_-]*)/), 
 
     type: $ => choice(
       's',
