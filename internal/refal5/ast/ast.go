@@ -20,6 +20,34 @@ func (t *Ast) GetLastDiagnostics() []AstError {
 	return t.lastDiagnostics
 }
 
+func (t *Ast) NeedCompletion(
+	lineStart, colStart, lineEnd, colEnd uint32,
+) bool {
+	node := t.tree.RootNode().NamedDescendantForPointRange(sitter.Point{
+		Row:    lineStart,
+		Column: colStart,
+	}, sitter.Point{
+		Row:    lineEnd,
+		Column: colEnd,
+	})
+
+	if node == nil {
+		return true
+	}
+
+	if node.IsError() {
+		node = node.Parent()
+	}
+
+	if node.Type() == StringNodeType || node.Type() == SymbolsSeqNodeType ||
+		node.Type() == CommentNodeType ||
+		node.Type() == LineCommentNodeType {
+		return false
+	}
+
+	return true
+}
+
 func BuildAst(ctx context.Context, oldTree *Ast, sourceCode []byte) *Ast {
 	parser := sitter.NewParser()
 	parser.SetLanguage(tree_sitter_refal5.GetLanguage())

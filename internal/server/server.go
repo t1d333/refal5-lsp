@@ -215,6 +215,21 @@ func (s *refalServer) textCompletionHandler(
 
 	wordToComplete = strings.ToLower(wordToComplete)
 
+	if !document.Ast.NeedCompletion(completionLine,
+		uint32(lspPositionToByteOffset(
+			string(document.Lines[completionLine]),
+			0,
+			int(completionStartPos),
+		)),
+		completionLine,
+		uint32(lspPositionToByteOffset(
+			string(document.Lines[completionLine]),
+			0,
+			int(completionPos),
+		))) {
+		return completionItems, nil
+	}
+
 	// completion defined functions
 	for function := range document.SymbolTable.FunctionDefinitions {
 		if !strings.HasPrefix(strings.ToLower(function), wordToComplete) ||
