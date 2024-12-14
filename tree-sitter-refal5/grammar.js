@@ -13,15 +13,21 @@ module.exports = grammar({
   extras: $ => [
     /\s/,
     $.comment,
-    $.line_comment,
+    $.line_comment
+  ],
+
+  externals: $ => [
+    $.line_comment
   ],
   
   rules: {
-    source_file: $ => repeat(
-      choice(
-        $.external_declaration,
-        $.function_definition,
-      )
+    source_file: $ => seq(
+      repeat(
+        choice(
+          $.external_declaration,
+          $.function_definition,
+        )
+      ),
     ),
     
     external_declaration: $ => seq(
@@ -200,12 +206,5 @@ module.exports = grammar({
       )),
       '*/'             
     ))),
-
-    line_comment: $ => token(prec(-100,
-        seq(
-          '*',               
-          /[^\n]*/          
-        ),
-    )),
   }
 });
