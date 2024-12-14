@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/t1d333/refal5-lsp/internal/refal5/ast"
-	// "github.com/t1d333/refal5-lsp/pkg/symbols"
 	"go.uber.org/zap"
 )
 

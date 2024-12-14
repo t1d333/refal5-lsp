@@ -196,9 +196,11 @@ module.exports = grammar({
       '*/'             
     ))),
 
-    line_comment: $ => token(prec(-1, seq(
-      '*',               
-      /[^\n]*/          
-    ))),
+    line_comment: $ => token(prec(-100,
+        seq(
+          '*',               
+          /[^\n]*/          
+        ),
+    )),
   }
 });

@@ -170,6 +170,7 @@ func (s *refalServer) textDocumentDidCloseHandler(
 	context *glsp.Context,
 	params *protocol.DidCloseTextDocumentParams,
 ) error {
+	s.logger.Sugar().Infow("textDocumentDidClose", zap.String("document", params.TextDocument.URI))
 	if err := s.storage.DeleteDocument(params.TextDocument.URI); err != nil {
 		s.logger.Error("refalServer.textDocumentDidCloseHandler", zap.Error(err))
 		return err
@@ -182,6 +183,7 @@ func (s *refalServer) textCompletionHandler(
 	context *glsp.Context,
 	params *protocol.CompletionParams,
 ) (any, error) {
+	s.logger.Sugar().Infow("textCompletion", zap.String("document", params.TextDocument.URI))
 	var completionItems []protocol.CompletionItem
 
 	document, _ := s.storage.GetDocument(params.TextDocument.URI)
@@ -376,13 +378,6 @@ func (s *refalServer) textDocumentDidChangeHandler(
 				int(event.Range.End.Line),
 				int(event.Range.End.Character),
 			)
-			// start, end := positionToIndex(
-			// 	event.Range.Start,
-			// 	[]rune(string(document.Content)),
-			// ), positionToIndex(
-			// 	event.Range.End,
-			// 	[]rune(string(document.Content)),
-			// )
 
 			s.storage.UpdateDocument(document.Uri, event.Text, uint32(start), uint32(end))
 
@@ -447,27 +442,32 @@ func (s *refalServer) setTrace(context *glsp.Context, params *protocol.SetTraceP
 	return nil
 }
 
+func (s *refalServer) textDocumentSemanticTokensFull(
+	context *glsp.Context,
+	params *protocol.SemanticTokensParams,
+) (*protocol.SemanticTokens, error) {
+	uri := params.TextDocument.URI
+	document, _ := s.storage.GetDocument(uri)
+	tokens := document.Ast.SemanticTokens(document.Content)
+	return &protocol.SemanticTokens{
+		ResultID: new(string),
+		Data:     tokens,
+	}, nil
+}
+
 func (s *refalServer) DefaultHandler() *protocol.Handler {
 	handler := &protocol.Handler{
-		Initialize:              s.initializeHandler,
-		Initialized:             s.initializedHandler,
-		Shutdown:                s.shutdownHandler,
-		SetTrace:                s.setTrace,
-		TextDocumentDidOpen:     s.textDocumentDidOpenHandler,
-		TextDocumentDidClose:    s.textDocumentDidCloseHandler,
-		TextDocumentDidChange:   s.textDocumentDidChangeHandler,
-		TextDocumentCompletion:  s.textCompletionHandler,
-		TextDocumentDefinition:  func(context *glsp.Context, params *protocol.DefinitionParams) (any, error) { return nil, nil },
-		TextDocumentDeclaration: func(context *glsp.Context, params *protocol.DeclarationParams) (any, error) { return nil, nil },
-		TextDocumentSemanticTokensFull: func(context *glsp.Context, params *protocol.SemanticTokensParams) (*protocol.SemanticTokens, error) {
-			uri := params.TextDocument.URI
-			document, _ := s.storage.GetDocument(uri)
-			tokens := document.Ast.SemanticTokens(document.Content)
-			return &protocol.SemanticTokens{
-				ResultID: new(string),
-				Data:     tokens,
-			}, nil
-		},
+		Initialize:                     s.initializeHandler,
+		Initialized:                    s.initializedHandler,
+		Shutdown:                       s.shutdownHandler,
+		SetTrace:                       s.setTrace,
+		TextDocumentDidOpen:            s.textDocumentDidOpenHandler,
+		TextDocumentDidClose:           s.textDocumentDidCloseHandler,
+		TextDocumentDidChange:          s.textDocumentDidChangeHandler,
+		TextDocumentCompletion:         s.textCompletionHandler,
+		TextDocumentDefinition:         func(context *glsp.Context, params *protocol.DefinitionParams) (any, error) { return nil, nil },
+		TextDocumentDeclaration:        func(context *glsp.Context, params *protocol.DeclarationParams) (any, error) { return nil, nil },
+		TextDocumentSemanticTokensFull: s.textDocumentSemanticTokensFull,
 	}
 
 	return handler
