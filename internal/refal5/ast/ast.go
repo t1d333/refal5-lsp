@@ -480,6 +480,7 @@ func (t *Ast) diagnosticsVarUsage(
 					})
 				}
 
+				
 				for usedVar := range usedVars {
 					pos := usedVars[usedVar]
 					if _, ok := definedVars[usedVar]; !ok {
@@ -522,7 +523,7 @@ func (t *Ast) diagnosticsVarUsage(
 
 					child := sentenceBlockRhs.Child(j)
 
-					if !child.IsNamed() || sentenceBlockRhs.FieldNameForChild(j) != "result" {
+					if !child.IsNamed() || sentenceBlockRhs.FieldNameForChild(j) != "expr" {
 						continue
 					}
 
@@ -554,13 +555,14 @@ func (t *Ast) diagnosticsVarUsage(
 				// TODO: log error
 				if err != nil {
 				}
-				defer query.Close()
+				// defer query.Close()
 
-				cursor.Exec(query, sentenceBlockRhs.ChildByFieldName("body"))
+				nestedCursor := sitter.NewQueryCursor()
+				nestedCursor.Exec(query, sentenceBlockRhs.ChildByFieldName("body"))
 
 				errors = append(
 					errors,
-					t.diagnosticsVarUsage(cursor, definedVars, sourceCode)...)
+					t.diagnosticsVarUsage(nestedCursor, definedVars, sourceCode)...)
 			}
 		}
 	}
