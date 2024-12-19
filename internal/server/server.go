@@ -10,6 +10,7 @@ import (
 	"github.com/t1d333/refal5-lsp/internal/refal5/ast"
 	"github.com/t1d333/refal5-lsp/internal/refal5/objects"
 	"github.com/t1d333/refal5-lsp/pkg/reader"
+	"github.com/t1d333/refal5-lsp/pkg/symbols"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	"github.com/tliron/glsp/server"
@@ -55,12 +56,22 @@ func (s *refalServer) PublishDiagnostics(ctx *glsp.Context, document documents.D
 		item := protocol.Diagnostic{
 			Range: protocol.Range{
 				Start: protocol.Position{
-					Line:      err.Start.Line,
-					Character: err.Start.Column,
+					Line: err.Start.Line,
+					Character: uint32(
+						symbols.ByteOffsetToRunePosition(
+							document.Lines[err.Start.Line],
+							int(err.Start.Column),
+						),
+					),
 				},
 				End: protocol.Position{
-					Line:      err.End.Line,
-					Character: err.End.Column,
+					Line: err.End.Line,
+					Character: uint32(
+						symbols.ByteOffsetToRunePosition(
+							document.Lines[err.Start.Line],
+							int(err.End.Column),
+						),
+					),
 				},
 			},
 			Severity: &sev,
@@ -159,6 +170,7 @@ func (s *refalServer) textDocumentDidCloseHandler(
 	context *glsp.Context,
 	params *protocol.DidCloseTextDocumentParams,
 ) error {
+	s.logger.Sugar().Infow("textDocumentDidClose", zap.String("document", params.TextDocument.URI))
 	if err := s.storage.DeleteDocument(params.TextDocument.URI); err != nil {
 		s.logger.Error("refalServer.textDocumentDidCloseHandler", zap.Error(err))
 		return err
@@ -171,32 +183,52 @@ func (s *refalServer) textCompletionHandler(
 	context *glsp.Context,
 	params *protocol.CompletionParams,
 ) (any, error) {
+	s.logger.Sugar().Infow("textCompletion", zap.String("document", params.TextDocument.URI))
 	var completionItems []protocol.CompletionItem
 
 	document, _ := s.storage.GetDocument(params.TextDocument.URI)
 
 	completionLine := params.TextDocumentPositionParams.Position.Line
 	completionPos := params.TextDocumentPositionParams.Position.Character
-	completionStartPos := params.TextDocumentPositionParams.Position.Character
 
 	if completionPos > 0 {
 		completionPos -= 1
 	}
 
+	completionStartPos := completionPos + 1
+
+	// TODO: check if competion in string or comment
+
 	wordToComplete := ""
-	line := document.Lines[completionLine]
+	line := []rune(document.Lines[completionLine])
 	i := int(completionPos)
 
 	for {
-		if i < 0 || unicode.IsSpace(rune(line[i])) {
+		if i < 0 || unicode.IsSpace(line[i]) {
 			break
 		}
 
 		wordToComplete = string(line[i]) + wordToComplete
 		i -= 1
+		completionStartPos -= 1
 	}
 
-	completionStartPos -= uint32(len(wordToComplete))
+	wordToComplete = strings.ToLower(wordToComplete)
+
+	if !document.Ast.NeedCompletion(completionLine,
+		uint32(lspPositionToByteOffset(
+			string(document.Lines[completionLine]),
+			0,
+			int(completionStartPos),
+		)),
+		completionLine,
+		uint32(lspPositionToByteOffset(
+			string(document.Lines[completionLine]),
+			0,
+			int(completionPos),
+		))) {
+		return completionItems, nil
+	}
 
 	// completion defined functions
 	for function := range document.SymbolTable.FunctionDefinitions {
@@ -275,13 +307,21 @@ func (s *refalServer) textCompletionHandler(
 
 	}
 
-	// completion variables
-	vars := document.Ast.NodeAt(
+	vars := document.Ast.VarCompletions(
 		document.Content,
+
 		completionLine,
-		completionStartPos,
+		uint32(lspPositionToByteOffset(
+			string(document.Lines[completionLine]),
+			0,
+			int(completionStartPos),
+		)),
 		completionLine,
-		completionPos,
+		uint32(lspPositionToByteOffset(
+			string(document.Lines[completionLine]),
+			0,
+			int(completionPos),
+		)),
 	)
 
 	for _, variable := range vars {
@@ -353,13 +393,6 @@ func (s *refalServer) textDocumentDidChangeHandler(
 				int(event.Range.End.Line),
 				int(event.Range.End.Character),
 			)
-			// start, end := positionToIndex(
-			// 	event.Range.Start,
-			// 	[]rune(string(document.Content)),
-			// ), positionToIndex(
-			// 	event.Range.End,
-			// 	[]rune(string(document.Content)),
-			// )
 
 			s.storage.UpdateDocument(document.Uri, event.Text, uint32(start), uint32(end))
 
@@ -424,27 +457,32 @@ func (s *refalServer) setTrace(context *glsp.Context, params *protocol.SetTraceP
 	return nil
 }
 
+func (s *refalServer) textDocumentSemanticTokensFull(
+	context *glsp.Context,
+	params *protocol.SemanticTokensParams,
+) (*protocol.SemanticTokens, error) {
+	uri := params.TextDocument.URI
+	document, _ := s.storage.GetDocument(uri)
+	tokens := document.Ast.SemanticTokens(document.Content)
+	return &protocol.SemanticTokens{
+		ResultID: new(string),
+		Data:     tokens,
+	}, nil
+}
+
 func (s *refalServer) DefaultHandler() *protocol.Handler {
 	handler := &protocol.Handler{
-		Initialize:              s.initializeHandler,
-		Initialized:             s.initializedHandler,
-		Shutdown:                s.shutdownHandler,
-		SetTrace:                s.setTrace,
-		TextDocumentDidOpen:     s.textDocumentDidOpenHandler,
-		TextDocumentDidClose:    s.textDocumentDidCloseHandler,
-		TextDocumentDidChange:   s.textDocumentDidChangeHandler,
-		TextDocumentCompletion:  s.textCompletionHandler,
-		TextDocumentDefinition:  func(context *glsp.Context, params *protocol.DefinitionParams) (any, error) { return nil, nil },
-		TextDocumentDeclaration: func(context *glsp.Context, params *protocol.DeclarationParams) (any, error) { return nil, nil },
-		TextDocumentSemanticTokensFull: func(context *glsp.Context, params *protocol.SemanticTokensParams) (*protocol.SemanticTokens, error) {
-			uri := params.TextDocument.URI
-			document, _ := s.storage.GetDocument(uri)
-			tokens := document.Ast.SematnticTokens(document.Content)
-			return &protocol.SemanticTokens{
-				ResultID: new(string),
-				Data:     tokens,
-			}, nil
-		},
+		Initialize:                     s.initializeHandler,
+		Initialized:                    s.initializedHandler,
+		Shutdown:                       s.shutdownHandler,
+		SetTrace:                       s.setTrace,
+		TextDocumentDidOpen:            s.textDocumentDidOpenHandler,
+		TextDocumentDidClose:           s.textDocumentDidCloseHandler,
+		TextDocumentDidChange:          s.textDocumentDidChangeHandler,
+		TextDocumentCompletion:         s.textCompletionHandler,
+		TextDocumentDefinition:         func(context *glsp.Context, params *protocol.DefinitionParams) (any, error) { return nil, nil },
+		TextDocumentDeclaration:        func(context *glsp.Context, params *protocol.DeclarationParams) (any, error) { return nil, nil },
+		TextDocumentSemanticTokensFull: s.textDocumentSemanticTokensFull,
 	}
 
 	return handler

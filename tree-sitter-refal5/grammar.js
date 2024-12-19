@@ -13,15 +13,21 @@ module.exports = grammar({
   extras: $ => [
     /\s/,
     $.comment,
-    $.line_comment,
+    $.line_comment
+  ],
+
+  externals: $ => [
+    $.line_comment
   ],
   
   rules: {
-    source_file: $ => repeat(
-      choice(
-        $.external_declaration,
-        $.function_definition,
-      )
+    source_file: $ => seq(
+      repeat(
+        choice(
+          $.external_declaration,
+          $.function_definition,
+        )
+      ),
     ),
     
     external_declaration: $ => seq(
@@ -39,6 +45,7 @@ module.exports = grammar({
     function_definition: $ => seq( field('entry' ,optional($.entry_modifier)),
       field('name', $.ident,),
       field('body', $.body),
+      optional(';')
     ),
 
     body: $ => seq(
@@ -46,7 +53,10 @@ module.exports = grammar({
       repeat(
         seq($.sentence, ';')
       ),
-      optional($.sentence),
+      choice(
+        $.sentence,
+        seq($.sentence, ';')
+      ),
       '}'
     ),
 
@@ -115,9 +125,16 @@ module.exports = grammar({
 
     function_call: $ => seq(
       '<',
+      
       field(
         "name",
-        $.ident
+        choice(
+          $.ident,
+          '+',
+          '-',
+          '*',
+          '/',
+        )
       ),
       field(
         "param",
@@ -135,10 +152,15 @@ module.exports = grammar({
     variable: $ => seq(
       field('type', $.type),
       '.',
-      field('name', $.ident),
+      field('name', $._index),
+    ), 
+
+    _index: $ => choice(
+        $.ident,
+        $.number
     ), 
     
-    ident : $ => /(([A-Za-z][A-Za-z0-9_-]*)|([0-9]+))/, 
+    ident : $ => token(/([A-Za-z][A-Za-z0-9_-]*)/), 
 
     type: $ => choice(
       's',
@@ -146,32 +168,43 @@ module.exports = grammar({
       't'
     ),
 
-    string: $ => /\"[^\"\n]*\"/,
+    string: $ => seq(
+      /"/,
+      repeat(choice(
+        prec(10, repeat1("\\\\")),
+        prec(-10, '\\"'),
+        /[^"\n]/,
+      )),
+      /"/,
+    ),
     
     number: $ => /('-'|'+')?\d+/,
     
-    symbols: $ => /\'[^\'\n]*\'/,
+    symbols: $ => seq(
+      /\'/,
+      repeat(choice(
+        prec(10, repeat1("\\\\")),
+        prec(-10, "\\'"),
+        /[^'\n]/
+      )),
+      /\'/,
+    ),
+
+    entry_modifier: $ => token(prec(10,'$ENTRY')),
     
-    entry_modifier: $ => '$ENTRY',
-    
-    external_modifier: $ => choice(
+    external_modifier: $ => token(prec(10, choice(
         '$EXTERNAL',
         '$EXTERN',
         '$EXTRN'
-    ),
+    ))),
 
-    comment: $ => seq(
+    comment: $ => token(prec(-1, seq(
       '/*',
       repeat(choice(
-        /([а-яА-ЯёЁ][а-яА-ЯёЁ0-9_])|[^\*]/,
+        /[^\*]/,
         seq('*', /[^/]/)
       )),
       '*/'             
-    ),
-
-    line_comment: $ => seq(
-      '*',               
-      /[^\n]*/          
-    ),
+    ))),
   }
 });

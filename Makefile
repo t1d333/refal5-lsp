@@ -18,6 +18,7 @@ generate-parser:
 	@mkdir -p internal/tree_sitter_refal5/tree_sitter
 	@cp -r $(TREE_SITTER_SOURCE_DIR)/src/tree_sitter/*  internal/tree_sitter_refal5/tree_sitter
 	@cp $(TREE_SITTER_SOURCE_DIR)/src/parser.c internal/tree_sitter_refal5
+	@cp $(TREE_SITTER_SOURCE_DIR)/src/scanner.c internal/tree_sitter_refal5
 
 clean:
 	@rm -rf ./out

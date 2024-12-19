@@ -20,6 +20,34 @@ func (t *Ast) GetLastDiagnostics() []AstError {
 	return t.lastDiagnostics
 }
 
+func (t *Ast) NeedCompletion(
+	lineStart, colStart, lineEnd, colEnd uint32,
+) bool {
+	node := t.tree.RootNode().NamedDescendantForPointRange(sitter.Point{
+		Row:    lineStart,
+		Column: colStart,
+	}, sitter.Point{
+		Row:    lineEnd,
+		Column: colEnd,
+	})
+
+	if node == nil {
+		return true
+	}
+
+	if node.IsError() {
+		node = node.Parent()
+	}
+
+	if node.Type() == StringNodeType || node.Type() == SymbolsSeqNodeType ||
+		node.Type() == CommentNodeType ||
+		node.Type() == LineCommentNodeType {
+		return false
+	}
+
+	return true
+}
+
 func BuildAst(ctx context.Context, oldTree *Ast, sourceCode []byte) *Ast {
 	parser := sitter.NewParser()
 	parser.SetLanguage(tree_sitter_refal5.GetLanguage())
@@ -31,7 +59,10 @@ func BuildAst(ctx context.Context, oldTree *Ast, sourceCode []byte) *Ast {
 	}
 }
 
-func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uint32) []string {
+func (t *Ast) VarCompletions(
+	sourceCode []byte,
+	lineStart, colStart, lineEnd, colEnd uint32,
+) []string {
 	node := t.tree.RootNode().NamedDescendantForPointRange(sitter.Point{
 		Row:    lineStart,
 		Column: colStart,
@@ -39,6 +70,14 @@ func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uin
 		Row:    lineEnd,
 		Column: colEnd,
 	})
+
+	if node.Type() == "sentence" {
+		if node.ChildByFieldName("sentence_eq") != nil {
+			node = node.ChildByFieldName("sentence_eq")
+		} else {
+			node = node.ChildByFieldName("sentence_block")
+		}
+	}
 
 	tmp := node
 
@@ -68,19 +107,53 @@ func (t *Ast) NodeAt(sourceCode []byte, lineStart, colStart, lineEnd, colEnd uin
 			node = node.Parent()
 		}
 
+		prev := node.PrevSibling()
+		prevNamed := node.PrevNamedSibling()
+		next := node.NextSibling()
+		nextNamed := node.NextNamedSibling()
+
+		for {
+			if prev == nil || !prev.IsExtra() {
+				break
+			}
+			prev = prev.PrevSibling()
+		}
+
+		for {
+			if prevNamed == nil || !prevNamed.IsExtra() {
+				break
+			}
+			prevNamed = prevNamed.PrevNamedSibling()
+		}
+
+		for {
+			if next == nil || !next.IsExtra() {
+				break
+			}
+			next = next.NextSibling()
+		}
+
+		for {
+			if nextNamed == nil || !nextNamed.IsExtra() {
+				break
+			}
+			nextNamed = nextNamed.NextSibling()
+		}
+
 		if node.Parent() != nil && node.Parent().Type() == BodyNodeType {
-			if node.PrevSibling() != nil && node.PrevSibling().Type() == ";" {
-				if node.NextNamedSibling() != nil {
-					sentence := node.NextNamedSibling()
+			if prev != nil &&
+				(prev.Type() == ";" || prev.Type() == "{") {
+				if nextNamed != nil {
+					sentence := nextNamed
 					sentenceVars := t.collectSentenceVariables(sentence, sourceCode, Position{})
 
 					for v := range sentenceVars {
 						varsToCompletion[v] = struct{}{}
 					}
 				}
-			} else if node.NextSibling() != nil && node.NextSibling().Type() == ";" {
-				if node.PrevNamedSibling() != nil {
-					sentence := node.PrevNamedSibling()
+			} else if next != nil && (next.Type() == ";" || next.Type() == "}") {
+				if prevNamed != nil {
+					sentence := prevNamed
 
 					sentenceVars := t.collectSentenceVariables(sentence, sourceCode, Position{})
 
@@ -407,6 +480,7 @@ func (t *Ast) diagnosticsVarUsage(
 					})
 				}
 
+				
 				for usedVar := range usedVars {
 					pos := usedVars[usedVar]
 					if _, ok := definedVars[usedVar]; !ok {
@@ -449,7 +523,7 @@ func (t *Ast) diagnosticsVarUsage(
 
 					child := sentenceBlockRhs.Child(j)
 
-					if !child.IsNamed() || sentenceBlockRhs.FieldNameForChild(j) != "result" {
+					if !child.IsNamed() || sentenceBlockRhs.FieldNameForChild(j) != "expr" {
 						continue
 					}
 
@@ -481,13 +555,14 @@ func (t *Ast) diagnosticsVarUsage(
 				// TODO: log error
 				if err != nil {
 				}
-				defer query.Close()
+				// defer query.Close()
 
-				cursor.Exec(query, sentenceBlockRhs.ChildByFieldName("body"))
+				nestedCursor := sitter.NewQueryCursor()
+				nestedCursor.Exec(query, sentenceBlockRhs.ChildByFieldName("body"))
 
 				errors = append(
 					errors,
-					t.diagnosticsVarUsage(cursor, definedVars, sourceCode)...)
+					t.diagnosticsVarUsage(nestedCursor, definedVars, sourceCode)...)
 			}
 		}
 	}
@@ -588,7 +663,7 @@ func (t *Ast) UpdateAst(
 	t.tree = newTree
 }
 
-func (t *Ast) SematnticTokens(sourceCode []byte) []uint32 {
+func (t *Ast) SemanticTokens(sourceCode []byte) []uint32 {
 	sourceCodeLines := strings.Split(string(sourceCode), "\n")
 	tokens := []uint32{}
 	prevStartLine := uint32(0)
@@ -630,12 +705,17 @@ func (t *Ast) SematnticTokens(sourceCode []byte) []uint32 {
 			} else {
 				semanticType = 6
 			}
+
 		case EntryModifierNodeType:
 			semanticType = 4
 		case ExternalModifierNodeType:
 			semanticType = 4
 		case NumberNodeType:
-			semanticType = 5
+			if node.Parent() != nil && node.Parent().Type() == VariableNodeType {
+				semanticType = 1
+			} else {
+				semanticType = 5
+			}
 		case SymbolsSeqNodeType:
 			semanticType = 6
 		case StringNodeType:
@@ -689,7 +769,10 @@ func (t *Ast) SematnticTokens(sourceCode []byte) []uint32 {
 			if len(lines) > 1 {
 				prevStartCol = 0
 			} else {
-				prevStartCol = node.StartPoint().Column
+				prevStartCol = uint32(symbols.ByteOffsetToRunePosition(
+					sourceCodeLines[node.StartPoint().Row],
+					int(node.StartPoint().Column),
+				))
 			}
 		} else {
 			colDelta := uint32(0)
@@ -713,7 +796,10 @@ func (t *Ast) SematnticTokens(sourceCode []byte) []uint32 {
 			)
 
 			prevStartLine = node.StartPoint().Row
-			prevStartCol = node.StartPoint().Column
+			prevStartCol = uint32(symbols.ByteOffsetToRunePosition(
+				sourceCodeLines[node.StartPoint().Row],
+				int(node.StartPoint().Column),
+			))
 		}
 
 	}

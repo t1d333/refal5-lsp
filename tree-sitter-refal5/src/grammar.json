@@ -3,20 +3,25 @@
   "name": "refal5",
   "rules": {
     "source_file": {
-      "type": "REPEAT",
-      "content": {
-        "type": "CHOICE",
-        "members": [
-          {
-            "type": "SYMBOL",
-            "name": "external_declaration"
-          },
-          {
-            "type": "SYMBOL",
-            "name": "function_definition"
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "external_declaration"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "function_definition"
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "external_declaration": {
       "type": "SEQ",
@@ -115,6 +120,18 @@
             "type": "SYMBOL",
             "name": "body"
           }
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": ";"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         }
       ]
     },
@@ -149,7 +166,17 @@
               "name": "sentence"
             },
             {
-              "type": "BLANK"
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "sentence"
+                },
+                {
+                  "type": "STRING",
+                  "value": ";"
+                }
+              ]
             }
           ]
         },
@@ -476,8 +503,29 @@
           "type": "FIELD",
           "name": "name",
           "content": {
-            "type": "SYMBOL",
-            "name": "ident"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "ident"
+              },
+              {
+                "type": "STRING",
+                "value": "+"
+              },
+              {
+                "type": "STRING",
+                "value": "-"
+              },
+              {
+                "type": "STRING",
+                "value": "*"
+              },
+              {
+                "type": "STRING",
+                "value": "/"
+              }
+            ]
           }
         },
         {
@@ -547,14 +595,30 @@
           "name": "name",
           "content": {
             "type": "SYMBOL",
-            "name": "ident"
+            "name": "_index"
           }
         }
       ]
     },
+    "_index": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "ident"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "number"
+        }
+      ]
+    },
     "ident": {
-      "type": "PATTERN",
-      "value": "(([A-Za-z][A-Za-z0-9_-]*)|([0-9]+))"
+      "type": "TOKEN",
+      "content": {
+        "type": "PATTERN",
+        "value": "([A-Za-z][A-Za-z0-9_-]*)"
+      }
     },
     "type": {
       "type": "CHOICE",
@@ -574,44 +638,11 @@
       ]
     },
     "string": {
-      "type": "PATTERN",
-      "value": "\\\"[^\\\"\\n]*\\\""
-    },
-    "number": {
-      "type": "PATTERN",
-      "value": "('-'|'+')?\\d+"
-    },
-    "symbols": {
-      "type": "PATTERN",
-      "value": "\\'[^\\'\\n]*\\'"
-    },
-    "entry_modifier": {
-      "type": "STRING",
-      "value": "$ENTRY"
-    },
-    "external_modifier": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "$EXTERNAL"
-        },
-        {
-          "type": "STRING",
-          "value": "$EXTERN"
-        },
-        {
-          "type": "STRING",
-          "value": "$EXTRN"
-        }
-      ]
-    },
-    "comment": {
       "type": "SEQ",
       "members": [
         {
-          "type": "STRING",
-          "value": "/*"
+          "type": "PATTERN",
+          "value": "\""
         },
         {
           "type": "REPEAT",
@@ -619,43 +650,164 @@
             "type": "CHOICE",
             "members": [
               {
-                "type": "PATTERN",
-                "value": "([а-яА-ЯёЁ][а-яА-ЯёЁ0-9_])|[^\\*]"
+                "type": "PREC",
+                "value": 10,
+                "content": {
+                  "type": "REPEAT1",
+                  "content": {
+                    "type": "STRING",
+                    "value": "\\\\"
+                  }
+                }
               },
               {
-                "type": "SEQ",
-                "members": [
-                  {
-                    "type": "STRING",
-                    "value": "*"
-                  },
-                  {
-                    "type": "PATTERN",
-                    "value": "[^/]"
-                  }
-                ]
+                "type": "PREC",
+                "value": -10,
+                "content": {
+                  "type": "STRING",
+                  "value": "\\\""
+                }
+              },
+              {
+                "type": "PATTERN",
+                "value": "[^\"\\n]"
               }
             ]
           }
         },
         {
-          "type": "STRING",
-          "value": "*/"
+          "type": "PATTERN",
+          "value": "\""
         }
       ]
     },
-    "line_comment": {
+    "number": {
+      "type": "PATTERN",
+      "value": "('-'|'+')?\\d+"
+    },
+    "symbols": {
       "type": "SEQ",
       "members": [
         {
-          "type": "STRING",
-          "value": "*"
+          "type": "PATTERN",
+          "value": "\\'"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "PREC",
+                "value": 10,
+                "content": {
+                  "type": "REPEAT1",
+                  "content": {
+                    "type": "STRING",
+                    "value": "\\\\"
+                  }
+                }
+              },
+              {
+                "type": "PREC",
+                "value": -10,
+                "content": {
+                  "type": "STRING",
+                  "value": "\\'"
+                }
+              },
+              {
+                "type": "PATTERN",
+                "value": "[^'\\n]"
+              }
+            ]
+          }
         },
         {
           "type": "PATTERN",
-          "value": "[^\\n]*"
+          "value": "\\'"
         }
       ]
+    },
+    "entry_modifier": {
+      "type": "TOKEN",
+      "content": {
+        "type": "PREC",
+        "value": 10,
+        "content": {
+          "type": "STRING",
+          "value": "$ENTRY"
+        }
+      }
+    },
+    "external_modifier": {
+      "type": "TOKEN",
+      "content": {
+        "type": "PREC",
+        "value": 10,
+        "content": {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "$EXTERNAL"
+            },
+            {
+              "type": "STRING",
+              "value": "$EXTERN"
+            },
+            {
+              "type": "STRING",
+              "value": "$EXTRN"
+            }
+          ]
+        }
+      }
+    },
+    "comment": {
+      "type": "TOKEN",
+      "content": {
+        "type": "PREC",
+        "value": -1,
+        "content": {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "/*"
+            },
+            {
+              "type": "REPEAT",
+              "content": {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "PATTERN",
+                    "value": "[^\\*]"
+                  },
+                  {
+                    "type": "SEQ",
+                    "members": [
+                      {
+                        "type": "STRING",
+                        "value": "*"
+                      },
+                      {
+                        "type": "PATTERN",
+                        "value": "[^/]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "STRING",
+              "value": "*/"
+            }
+          ]
+        }
+      }
     }
   },
   "extras": [
@@ -674,7 +826,12 @@
   ],
   "conflicts": [],
   "precedences": [],
-  "externals": [],
+  "externals": [
+    {
+      "type": "SYMBOL",
+      "name": "line_comment"
+    }
+  ],
   "inline": [],
   "supertypes": []
 }

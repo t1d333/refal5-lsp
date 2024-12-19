@@ -5,7 +5,7 @@
     "fields": {},
     "children": {
       "multiple": true,
-      "required": false,
+      "required": true,
       "types": [
         {
           "type": "sentence",
@@ -13,11 +13,6 @@
         }
       ]
     }
-  },
-  {
-    "type": "comment",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "condition",
@@ -116,11 +111,6 @@
     }
   },
   {
-    "type": "external_modifier",
-    "named": true,
-    "fields": {}
-  },
-  {
     "type": "function_call",
     "named": true,
     "fields": {
@@ -128,6 +118,22 @@
         "multiple": false,
         "required": true,
         "types": [
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "+",
+            "named": false
+          },
+          {
+            "type": "-",
+            "named": false
+          },
+          {
+            "type": "/",
+            "named": false
+          },
           {
             "type": "ident",
             "named": true
@@ -299,11 +305,6 @@
         }
       ]
     }
-  },
-  {
-    "type": "line_comment",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "sentence",
@@ -548,6 +549,16 @@
     }
   },
   {
+    "type": "string",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "symbols",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "type",
     "named": true,
     "fields": {}
@@ -562,6 +573,10 @@
         "types": [
           {
             "type": "ident",
+            "named": true
+          },
+          {
+            "type": "number",
             "named": true
           }
         ]
@@ -579,18 +594,6 @@
     }
   },
   {
-    "type": "$EXTERN",
-    "named": false
-  },
-  {
-    "type": "$EXTERNAL",
-    "named": false
-  },
-  {
-    "type": "$EXTRN",
-    "named": false
-  },
-  {
     "type": "(",
     "named": false
   },
@@ -603,7 +606,7 @@
     "named": false
   },
   {
-    "type": "*/",
+    "type": "+",
     "named": false
   },
   {
@@ -611,11 +614,15 @@
     "named": false
   },
   {
+    "type": "-",
+    "named": false
+  },
+  {
     "type": ".",
     "named": false
   },
   {
-    "type": "/*",
+    "type": "/",
     "named": false
   },
   {
@@ -639,6 +646,22 @@
     "named": false
   },
   {
+    "type": "\\\"",
+    "named": false
+  },
+  {
+    "type": "\\'",
+    "named": false
+  },
+  {
+    "type": "\\\\",
+    "named": false
+  },
+  {
+    "type": "comment",
+    "named": true
+  },
+  {
     "type": "e",
     "named": false
   },
@@ -647,7 +670,15 @@
     "named": true
   },
   {
+    "type": "external_modifier",
+    "named": true
+  },
+  {
     "type": "ident",
+    "named": true
+  },
+  {
+    "type": "line_comment",
     "named": true
   },
   {
@@ -657,14 +688,6 @@
   {
     "type": "s",
     "named": false
-  },
-  {
-    "type": "string",
-    "named": true
-  },
-  {
-    "type": "symbols",
-    "named": true
   },
   {
     "type": "t",
